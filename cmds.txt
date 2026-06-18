@@ -1,0 +1,43 @@
+venv\Scripts\activate.bat
+
+uvicorn main:app --reload
+
+python stress_test.py
+
+docker stop my-retail-store
+
+docker rm my-retail-store
+
+
+
+docker compose up -d --build
+
+docker compose logs -f
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+PS C:\Users\Client> Get-CimInstance Win32_Processor | Select Name,NumberOfCores,NumberOfLogicalProcessors
+
+Name                                           NumberOfCores NumberOfLogicalProcessors
+----                                           ------------- -------------------------
+11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz             4                         8
+
