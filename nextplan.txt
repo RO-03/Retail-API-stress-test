@@ -1,244 +1,64 @@
-Serving the HTML directly from FastAPI using Jinja2Templates is a very clean, monolithic approach. It keeps your entire application contained within a single Docker image without needing a separate frontend server.
+relying on a programmatic approach to create your first user—often called "database seeding"—is a standard industry practice because it is repeatable and does not require external graphical tools.
 
-Here is exactly how to set up the Jinja2 integration and the frontend files to interact with the secured API we just built.
+We will create a quick, one-off Python script to generate your first admin user directly through your Docker container.
 
-Step 1: Update Directory Structure
-In your project folder, create a new directory named templates. This is where FastAPI will look for your HTML files.
+Here is how to do it step-by-step:
 
-Plaintext
-/project_root
-  ├── main.py
-  ├── database.py
-  ├── models.py
-  ├── schemas.py
-  ├── auth.py
-  ├── Dockerfile
-  ├── docker-compose.yml
-  └── /templates          <-- Create this folder
-      ├── customer.html
-      ├── admin_login.html
-      └── admin_dashboard.html
-Step 2: Update main.py
-We need to import Request and Jinja2Templates, and then create endpoints that serve these HTML pages to the browser.
-
-Add this code to your main.py file, just below where you defined app = FastAPI():
+Step 1: Create the Seeding Script
+In your project root directory (alongside main.py), create a new file named create_admin.py and paste the following code into it:
 
 Python
-from fastapi import Request
-from fastapi.templating import Jinja2Templates
+from database import SessionLocal
+import models
+import auth
 
-# Initialize Jinja2 Templates
-templates = Jinja2Templates(directory="templates")
+def create_superuser():
+    db = SessionLocal()
+    try:
+        # Check if an admin already exists to prevent duplicates
+        existing_admin = db.query(models.Admin).filter(models.Admin.username == "admin").first()
+        if existing_admin:
+            print("Admin user already exists!")
+            return
 
-# ==========================================
-# FRONTEND PAGE ROUTES
-# ==========================================
+        # Hash the password and create the user
+        hashed_pw = auth.get_password_hash("admin123")
+        new_admin = models.Admin(username="admin", hashed_password=hashed_pw)
+        
+        db.add(new_admin)
+        db.commit()
+        print("✅ Success! Admin user created.")
+        print("Username: admin")
+        print("Password: admin123")
+        
+    except Exception as e:
+        print(f"❌ Error creating admin: {e}")
+    finally:
+        db.close()
 
-@app.get("/")
-def render_customer_page(request: Request):
-    """Serves the Customer Storefront"""
-    return templates.TemplateResponse("customer.html", {"request": request})
+if __name__ == "__main__":
+    create_superuser()
+Step 2: Rebuild Your Containers
+Because you added a new Python file to your local directory, you need to rebuild your API image so Docker copies the new create_admin.py file into the container.
 
-@app.get("/admin")
-def render_admin_login(request: Request):
-    """Serves the Admin Login Screen"""
-    return templates.TemplateResponse("admin_login.html", {"request": request})
-
-@app.get("/admin/dashboard")
-def render_admin_dashboard(request: Request):
-    """Serves the Secured Admin Dashboard"""
-    return templates.TemplateResponse("admin_dashboard.html", {"request": request})
-Step 3: Create the HTML/JS Frontend Pages
-Create the following three files inside your new templates folder. I have included vanilla JavaScript (Fetch API) in these files so they communicate perfectly with your backend.
-
-1. templates/customer.html
-This page automatically fetches available items and allows the customer to purchase them.
-
-HTML
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Retail Store</title>
-    <style>body { font-family: Arial; padding: 20px; } .card { border: 1px solid #ccc; padding: 15px; margin-bottom: 10px; width: 300px; }</style>
-</head>
-<body>
-    <h1>Welcome to the Store</h1>
-    <div id="items-container">Loading items...</div>
-
-    <script>
-        async function loadItems() {
-            const response = await fetch('/items');
-            const items = await response.json();
-            const container = document.getElementById('items-container');
-            container.innerHTML = '';
-            
-            items.forEach(item => {
-                container.innerHTML += `
-                    <div class="card">
-                        <h3>${item.name}</h3>
-                        <p>Price: $${item.price}</p>
-                        <p>In Stock: ${item.stock}</p>
-                        <button onclick="purchase(${item.id})">Buy Now</button>
-                    </div>`;
-            });
-        }
-
-        async function purchase(id) {
-            const response = await fetch(`/purchase/${id}`, { method: 'POST' });
-            if (response.ok) {
-                alert('Purchase successful!');
-                loadItems(); // Refresh inventory
-            } else {
-                alert('Item out of stock or error occurred.');
-            }
-        }
-        loadItems();
-    </script>
-</body>
-</html>
-2. templates/admin_login.html
-This page handles authentication. It posts the credentials to your backend, receives the JWT, and saves it to the browser's localStorage.
-
-HTML
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Admin Login</title>
-</head>
-<body>
-    <h2>Admin Access</h2>
-    <form id="login-form">
-        <input type="text" id="username" placeholder="Username" required><br><br>
-        <input type="password" id="password" placeholder="Password" required><br><br>
-        <button type="submit">Login</button>
-    </form>
-    <p id="error-msg" style="color:red;"></p>
-
-    <script>
-        document.getElementById('login-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            // FastAPI OAuth2 requires form data, not JSON
-            const formData = new URLSearchParams();
-            formData.append('username', document.getElementById('username').value);
-            formData.append('password', document.getElementById('password').value);
-
-            const response = await fetch('/admin/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: formData
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                localStorage.setItem('token', data.access_token);
-                window.location.href = '/admin/dashboard'; // Redirect on success
-            } else {
-                document.getElementById('error-msg').innerText = "Invalid credentials";
-            }
-        });
-    </script>
-</body>
-</html>
-3. templates/admin_dashboard.html
-This is the secured page. The JavaScript grabs the JWT from localStorage and attaches it as an Authorization: Bearer <token> header to every request it makes to add, update, or delete items.
-
-HTML
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Admin Dashboard</title>
-</head>
-<body>
-    <h1>Inventory Management</h1>
-    <button onclick="logout()">Logout</button>
-    
-    <h3>Add New Item</h3>
-    <input type="text" id="name" placeholder="Item Name">
-    <input type="number" id="price" placeholder="Price">
-    <input type="number" id="stock" placeholder="Initial Stock">
-    <button onclick="addItem()">Add Item</button>
-
-    <h3>Current Inventory</h3>
-    <div id="inventory-list"></div>
-
-    <script>
-        // Security Check: If no token, kick back to login
-        const token = localStorage.getItem('token');
-        if (!token) window.location.href = '/admin';
-
-        async function fetchAdminItems() {
-            // Reusing the public endpoint for viewing, but admin can see out-of-stock too if we create a specific route later.
-            const response = await fetch('/items');
-            const items = await response.json();
-            const container = document.getElementById('inventory-list');
-            container.innerHTML = '';
-            
-            items.forEach(item => {
-                container.innerHTML += `
-                    <div style="border:1px solid #000; padding:10px; margin:5px;">
-                        <b>${item.name}</b> - $${item.price} (Stock: ${item.stock})
-                        <br><br>
-                        <button onclick="addStock(${item.id})">Add +5 Stock</button>
-                        <button onclick="deleteItem(${item.id})" style="color:red;">Delete</button>
-                    </div>`;
-            });
-        }
-
-        async function addItem() {
-            const data = {
-                name: document.getElementById('name').value,
-                price: parseFloat(document.getElementById('price').value),
-                stock: parseInt(document.getElementById('stock').value)
-            };
-
-            await fetch('/admin/items', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}` // Passing the JWT Token
-                },
-                body: JSON.stringify(data)
-            });
-            fetchAdminItems();
-        }
-
-        async function addStock(id) {
-            await fetch(`/admin/items/${id}`, {
-                method: 'PUT',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}` 
-                },
-                body: JSON.stringify({ stock_add: 5 })
-            });
-            fetchAdminItems();
-        }
-
-        async function deleteItem(id) {
-            await fetch(`/admin/items/${id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            fetchAdminItems();
-        }
-
-        function logout() {
-            localStorage.removeItem('token');
-            window.location.href = '/admin';
-        }
-
-        fetchAdminItems();
-    </script>
-</body>
-</html>
-Step 4: Rebuild Docker
-Since you added a new templates directory, you need to ensure it is copied into your Docker image.
-
-Ensure your Dockerfile has a command like COPY . . to move the templates folder into the container alongside your .py files. Then simply rebuild the container:
+Run this in your terminal:
 
 Bash
 docker compose up -d --build
-You can now navigate to localhost:8000/ for the storefront and localhost:8000/admin to test the new authentication flow.
+Step 3: Execute the Script Inside Docker
+Once the containers are back up and running, you can tell Docker to execute that specific file inside the running api container.
 
-Do you have a specific database management tool like DBeaver or pgAdmin set up to manually inject your first Admin user credentials into the database so you can log in?
+Run this command:
+
+Bash
+docker compose exec api python create_admin.py
+You should see the success message printed in your terminal.
+
+Step 4: Log In
+You can now navigate to http://localhost:8000/admin in your web browser.
+
+Use the credentials you just generated:
+
+Username: admin
+
+Password: admin123
