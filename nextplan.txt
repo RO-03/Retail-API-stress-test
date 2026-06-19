@@ -1,205 +1,244 @@
-Splitting your application into distinct Customer and Admin domains with JWT authentication is a very smart architectural move. Before you introduce external routers like Nginx or CI/CD pipelines, locking down your internal API security is essential.
+Serving the HTML directly from FastAPI using Jinja2Templates is a very clean, monolithic approach. It keeps your entire application contained within a single Docker image without needing a separate frontend server.
 
-To achieve this, we need to add a few security libraries, create an authentication module, and separate your routes. Here is the step-by-step implementation.
+Here is exactly how to set up the Jinja2 integration and the frontend files to interact with the secured API we just built.
 
-Step 1: Update Dependencies (requirements.txt)
-You need standard security libraries to handle password hashing and JWT (JSON Web Token) generation. Add these to your file:
+Step 1: Update Directory Structure
+In your project folder, create a new directory named templates. This is where FastAPI will look for your HTML files.
 
 Plaintext
-fastapi
-uvicorn
-sqlalchemy
-pydantic
-psycopg2-binary
-# New Security Dependencies:
-python-jose[cryptography]
-passlib[bcrypt]
-python-multipart
-jinja2 # If you are serving the HTML pages directly from FastAPI
-Step 2: Database Models & Schemas
-Update your models to include an Admin user table and define the schemas for request validation.
+/project_root
+  ├── main.py
+  ├── database.py
+  ├── models.py
+  ├── schemas.py
+  ├── auth.py
+  ├── Dockerfile
+  ├── docker-compose.yml
+  └── /templates          <-- Create this folder
+      ├── customer.html
+      ├── admin_login.html
+      └── admin_dashboard.html
+Step 2: Update main.py
+We need to import Request and Jinja2Templates, and then create endpoints that serve these HTML pages to the browser.
 
-models.py
-
-Python
-from sqlalchemy import Column, Integer, String, Float
-from database import Base
-
-class Admin(Base):
-    __tablename__ = "admins"
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    hashed_password = Column(String)
-
-class Item(Base):
-    __tablename__ = "items"
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, index=True)
-    price = Column(Float)
-    stock = Column(Integer)
-schemas.py
+Add this code to your main.py file, just below where you defined app = FastAPI():
 
 Python
-from pydantic import BaseModel
+from fastapi import Request
+from fastapi.templating import Jinja2Templates
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-class ItemCreate(BaseModel):
-    name: str
-    price: float
-    stock: int
-
-class ItemUpdate(BaseModel):
-    price: float = None
-    stock_add: int = None # For restocking
-Step 3: The Security Core (auth.py)
-Create a new file named auth.py. This handles password hashing, verifying the JWT, and locking down the Admin routes.
-
-Python
-from datetime import datetime, timedelta
-from jose import JWTError, jwt
-from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import Session
-from database import SessionLocal
-import models
-
-# Security Settings (In production, move SECRET_KEY to .env)
-SECRET_KEY = "your-super-secret-key-change-this"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="admin/login")
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password):
-    return pwd_context.hash(password)
-
-def create_access_token(data: dict):
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-
-def get_current_admin(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-    
-    admin = db.query(models.Admin).filter(models.Admin.username == username).first()
-    if admin is None:
-        raise credentials_exception
-    return admin
-Step 4: Routing & Logic (main.py)
-Now, we split your API into Public (Customer) and Protected (Admin) endpoints.  
-
-Python
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-import models, schemas, auth
-from database import engine
-
-models.Base.metadata.create_all(bind=engine)
-
-app = FastAPI()
+# Initialize Jinja2 Templates
+templates = Jinja2Templates(directory="templates")
 
 # ==========================================
-# PUBLIC CUSTOMER ROUTES
+# FRONTEND PAGE ROUTES
 # ==========================================
 
-@app.get("/items")
-def view_items(db: Session = Depends(auth.get_db)):
-    """Customer: View all available items"""
-    return db.query(models.Item).filter(models.Item.stock > 0).all()
+@app.get("/")
+def render_customer_page(request: Request):
+    """Serves the Customer Storefront"""
+    return templates.TemplateResponse("customer.html", {"request": request})
 
-@app.post("/purchase/{item_id}")
-def purchase_item(item_id: int, db: Session = Depends(auth.get_db)):
-    """Customer: High-concurrency atomic purchase"""
-    # Raw SQL for atomic update to prevent race conditions during stress tests
-    result = db.execute(
-        text("UPDATE items SET stock = stock - 1 WHERE id = :id AND stock > 0 RETURNING id"),
-        {"id": item_id}
-    ).fetchone()
+@app.get("/admin")
+def render_admin_login(request: Request):
+    """Serves the Admin Login Screen"""
+    return templates.TemplateResponse("admin_login.html", {"request": request})
+
+@app.get("/admin/dashboard")
+def render_admin_dashboard(request: Request):
+    """Serves the Secured Admin Dashboard"""
+    return templates.TemplateResponse("admin_dashboard.html", {"request": request})
+Step 3: Create the HTML/JS Frontend Pages
+Create the following three files inside your new templates folder. I have included vanilla JavaScript (Fetch API) in these files so they communicate perfectly with your backend.
+
+1. templates/customer.html
+This page automatically fetches available items and allows the customer to purchase them.
+
+HTML
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Retail Store</title>
+    <style>body { font-family: Arial; padding: 20px; } .card { border: 1px solid #ccc; padding: 15px; margin-bottom: 10px; width: 300px; }</style>
+</head>
+<body>
+    <h1>Welcome to the Store</h1>
+    <div id="items-container">Loading items...</div>
+
+    <script>
+        async function loadItems() {
+            const response = await fetch('/items');
+            const items = await response.json();
+            const container = document.getElementById('items-container');
+            container.innerHTML = '';
+            
+            items.forEach(item => {
+                container.innerHTML += `
+                    <div class="card">
+                        <h3>${item.name}</h3>
+                        <p>Price: $${item.price}</p>
+                        <p>In Stock: ${item.stock}</p>
+                        <button onclick="purchase(${item.id})">Buy Now</button>
+                    </div>`;
+            });
+        }
+
+        async function purchase(id) {
+            const response = await fetch(`/purchase/${id}`, { method: 'POST' });
+            if (response.ok) {
+                alert('Purchase successful!');
+                loadItems(); // Refresh inventory
+            } else {
+                alert('Item out of stock or error occurred.');
+            }
+        }
+        loadItems();
+    </script>
+</body>
+</html>
+2. templates/admin_login.html
+This page handles authentication. It posts the credentials to your backend, receives the JWT, and saves it to the browser's localStorage.
+
+HTML
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Login</title>
+</head>
+<body>
+    <h2>Admin Access</h2>
+    <form id="login-form">
+        <input type="text" id="username" placeholder="Username" required><br><br>
+        <input type="password" id="password" placeholder="Password" required><br><br>
+        <button type="submit">Login</button>
+    </form>
+    <p id="error-msg" style="color:red;"></p>
+
+    <script>
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // FastAPI OAuth2 requires form data, not JSON
+            const formData = new URLSearchParams();
+            formData.append('username', document.getElementById('username').value);
+            formData.append('password', document.getElementById('password').value);
+
+            const response = await fetch('/admin/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formData
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                localStorage.setItem('token', data.access_token);
+                window.location.href = '/admin/dashboard'; // Redirect on success
+            } else {
+                document.getElementById('error-msg').innerText = "Invalid credentials";
+            }
+        });
+    </script>
+</body>
+</html>
+3. templates/admin_dashboard.html
+This is the secured page. The JavaScript grabs the JWT from localStorage and attaches it as an Authorization: Bearer <token> header to every request it makes to add, update, or delete items.
+
+HTML
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard</title>
+</head>
+<body>
+    <h1>Inventory Management</h1>
+    <button onclick="logout()">Logout</button>
     
-    if not result:
-        raise HTTPException(status_code=409, detail="Item out of stock or does not exist")
-    
-    db.commit()
-    return {"message": "Purchase successful"}
+    <h3>Add New Item</h3>
+    <input type="text" id="name" placeholder="Item Name">
+    <input type="number" id="price" placeholder="Price">
+    <input type="number" id="stock" placeholder="Initial Stock">
+    <button onclick="addItem()">Add Item</button>
 
+    <h3>Current Inventory</h3>
+    <div id="inventory-list"></div>
 
-# ==========================================
-# PROTECTED ADMIN ROUTES
-# ==========================================
+    <script>
+        // Security Check: If no token, kick back to login
+        const token = localStorage.getItem('token');
+        if (!token) window.location.href = '/admin';
 
-@app.post("/admin/login", response_model=schemas.Token)
-def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(auth.get_db)):
-    """Admin: Login to receive JWT Token"""
-    admin = db.query(models.Admin).filter(models.Admin.username == form_data.username).first()
-    if not admin or not auth.verify_password(form_data.password, admin.hashed_password):
-        raise HTTPException(status_code=401, detail="Incorrect username or password")
-    
-    access_token = auth.create_access_token(data={"sub": admin.username})
-    return {"access_token": access_token, "token_type": "bearer"}
+        async function fetchAdminItems() {
+            // Reusing the public endpoint for viewing, but admin can see out-of-stock too if we create a specific route later.
+            const response = await fetch('/items');
+            const items = await response.json();
+            const container = document.getElementById('inventory-list');
+            container.innerHTML = '';
+            
+            items.forEach(item => {
+                container.innerHTML += `
+                    <div style="border:1px solid #000; padding:10px; margin:5px;">
+                        <b>${item.name}</b> - $${item.price} (Stock: ${item.stock})
+                        <br><br>
+                        <button onclick="addStock(${item.id})">Add +5 Stock</button>
+                        <button onclick="deleteItem(${item.id})" style="color:red;">Delete</button>
+                    </div>`;
+            });
+        }
 
-@app.post("/admin/items")
-def add_item(item: schemas.ItemCreate, admin: models.Admin = Depends(auth.get_current_admin), db: Session = Depends(auth.get_db)):
-    """Admin: Add a new item to the store"""
-    new_item = models.Item(**item.dict())
-    db.add(new_item)
-    db.commit()
-    return {"message": "Item added successfully"}
+        async function addItem() {
+            const data = {
+                name: document.getElementById('name').value,
+                price: parseFloat(document.getElementById('price').value),
+                stock: parseInt(document.getElementById('stock').value)
+            };
 
-@app.put("/admin/items/{item_id}")
-def update_item(item_id: int, item_update: schemas.ItemUpdate, admin: models.Admin = Depends(auth.get_current_admin), db: Session = Depends(auth.get_db)):
-    """Admin: Update price or restock an item"""
-    db_item = db.query(models.Item).filter(models.Item.id == item_id).first()
-    if not db_item:
-        raise HTTPException(status_code=404, detail="Item not found")
-    
-    if item_update.price is not None:
-        db_item.price = item_update.price
-    if item_update.stock_add is not None:
-        db_item.stock += item_update.stock_add
-        
-    db.commit()
-    return {"message": "Item updated successfully"}
+            await fetch('/admin/items', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` // Passing the JWT Token
+                },
+                body: JSON.stringify(data)
+            });
+            fetchAdminItems();
+        }
 
-@app.delete("/admin/items/{item_id}")
-def delete_item(item_id: int, admin: models.Admin = Depends(auth.get_current_admin), db: Session = Depends(auth.get_db)):
-    """Admin: Remove an item entirely"""
-    db_item = db.query(models.Item).filter(models.Item.id == item_id).first()
-    if not db_item:
-        raise HTTPException(status_code=404, detail="Item not found")
-    
-    db.delete(db_item)
-    db.commit()
-    return {"message": "Item deleted"}
-Next Step: The Frontend Pages
-With the backend completely secured, how do you want to build the frontend pages?
+        async function addStock(id) {
+            await fetch(`/admin/items/${id}`, {
+                method: 'PUT',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify({ stock_add: 5 })
+            });
+            fetchAdminItems();
+        }
 
-Option A: I can show you how to use FastAPI's Jinja2Templates to serve the HTML directly from Python (great for keeping everything in one Docker container).
+        async function deleteItem(id) {
+            await fetch(`/admin/items/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            fetchAdminItems();
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            window.location.href = '/admin';
+        }
+
+        fetchAdminItems();
+    </script>
+</body>
+</html>
+Step 4: Rebuild Docker
+Since you added a new templates directory, you need to ensure it is copied into your Docker image.
+
+Ensure your Dockerfile has a command like COPY . . to move the templates folder into the container alongside your .py files. Then simply rebuild the container:
+
+Bash
+docker compose up -d --build
+You can now navigate to localhost:8000/ for the storefront and localhost:8000/admin to test the new authentication flow.
+
+Do you have a specific database management tool like DBeaver or pgAdmin set up to manually inject your first Admin user credentials into the database so you can log in?

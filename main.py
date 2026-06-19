@@ -9,6 +9,31 @@ models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
+from fastapi import Request
+from fastapi.templating import Jinja2Templates
+
+# Initialize Jinja2 Templates
+templates = Jinja2Templates(directory="templates")
+
+# ==========================================
+# FRONTEND PAGE ROUTES
+# ==========================================
+
+@app.get("/")
+def render_customer_page(request: Request):
+    """Serves the Customer Storefront"""
+    return templates.TemplateResponse("customer.html", {"request": request})
+
+@app.get("/admin")
+def render_admin_login(request: Request):
+    """Serves the Admin Login Screen"""
+    return templates.TemplateResponse("admin_login.html", {"request": request})
+
+@app.get("/admin/dashboard")
+def render_admin_dashboard(request: Request):
+    """Serves the Secured Admin Dashboard"""
+    return templates.TemplateResponse("admin_dashboard.html", {"request": request})
+
 # ==========================================
 # PUBLIC CUSTOMER ROUTES
 # ==========================================

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Retail Store</title>
+    <style>body { font-family: Arial; padding: 20px; } .card { border: 1px solid #ccc; padding: 15px; margin-bottom: 10px; width: 300px; }</style>
+</head>
+<body>
+    <h1>Welcome to the Store</h1>
+    <div id="items-container">Loading items...</div>
+
+    <script>
+        async function loadItems() {
+            const response = await fetch('/items');
+            const items = await response.json();
+            const container = document.getElementById('items-container');
+            container.innerHTML = '';
+            
+            items.forEach(item => {
+                container.innerHTML += `
+                    <div class="card">
+                        <h3>${item.name}</h3>
+                        <p>Price: $${item.price}</p>
+                        <p>In Stock: ${item.stock}</p>
+                        <button onclick="purchase(${item.id})">Buy Now</button>
+                    </div>`;
+            });
+        }
+
+        async function purchase(id) {
+            const response = await fetch(`/purchase/${id}`, { method: 'POST' });
+            if (response.ok) {
+                alert('Purchase successful!');
+                loadItems(); // Refresh inventory
+            } else {
+                alert('Item out of stock or error occurred.');
+            }
+        }
+        loadItems();
+    </script>
+</body>
+</html>
