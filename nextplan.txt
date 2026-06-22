@@ -1,61 +1,44 @@
-Stepping up to JMeter is exactly how enterprise engineers handle load testing. It is incredibly powerful because it gives you granular control over how the stress is applied to your server.
+Here is the complete architectural context and migration plan. You can copy and paste this entire block into any LLM to instantly bring it up to speed on your project's current state and generate the exact Kubernetes manifests you need.
 
-Since you are running on Windows and already have the JDK and JMeter installed, here is the exact step-by-step guide to configuring your test for 10,000 concurrent purchases against your Dockerized FastAPI app.
+---
 
-### ⚙️ Step 1: Launch JMeter
+**🐘 Project Context: FastAPI Retail Store Kubernetes Migration**
 
-1. Navigate to your installed JMeter folder.
-2. Go into the `bin` directory.
-3. Double-click `jmeter.bat` to launch the graphical interface.
+**Current State:** A full-stack Retail Store inventory and purchasing API with a unified backend and Jinja2 frontend.
+**Recent Optimizations:** The application was recently migrated from SQLite to PostgreSQL to resolve I/O bottlenecks. Extensive JMeter stress testing (10,000 concurrent requests) revealed that the optimal hardware configuration is 6 total Uvicorn workers. The SQLAlchemy connection pool is explicitly tuned (pool_size=20, max_overflow=30) to prevent exhausting PostgreSQL's max_connections (set to 350). The API is currently split into Public Customer routes and Protected Admin routes (secured via bcrypt and JWT authentication).
+**The Goal:** Migrate the infrastructure from a single-node Docker Compose setup to a local Kubernetes (K8s) cluster. The primary objective is to implement a Horizontal Scaling architecture that supports Zero-Downtime deployments via K8s Rolling Updates.
 
-### 👥 Step 2: Create a Thread Group (The Virtual Users)
+**🛠️ The Tech Stack**
 
-The "Thread Group" represents your users.
+* **Backend:** FastAPI, Python 3.11
+* **Server:** Uvicorn
+* **Database:** PostgreSQL 15 (Official Alpine Docker Image)
+* **Authentication:** JWT (python-jose), bcrypt (passlib)
+* **Frontend:** Jinja2Templates (serving HTML/Vanilla JS directly from FastAPI)
+* **Target Infrastructure:** Kubernetes (Minikube / Docker Desktop)
 
-1. In the left panel, right-click on **Test Plan**.
-2. Hover over **Add** -> **Threads (Users)** -> Click **Thread Group**.
-3. In the new window, configure these exact settings:
-* **Number of Threads (users):** `10000`
-* **Ramp-up period (seconds):** `10`
-* **Loop Count:** `1`
+**📋 The Target Kubernetes Architecture**
+The migration requires transitioning from a vertically scaled Docker setup (1 container, 6 workers) to a horizontally scaled Kubernetes setup. To respect local hardware CPU limits while maintaining the optimized 6-worker throughput, the architecture must be distributed:
 
-
-
-> **Why a 10-second ramp-up?** If you set this to 0, JMeter attempts to open 10,000 TCP ports on your Windows machine in a single millisecond. Windows will usually block this to protect itself (a phenomenon called Ephemeral Port Exhaustion), and the test will fail before it even reaches Docker. A 10-second ramp-up means JMeter will add 1,000 new users every second, which is a massive but realistic spike!
-
-### 🌐 Step 3: Configure the HTTP Request
-
-Now we tell those 10,000 users exactly where to click.
-
-1. Right-click on your newly created **Thread Group**.
-2. Hover over **Add** -> **Sampler** -> Click **HTTP Request**.
-3. Fill out the web server details:
-* **Protocol [http]:** `http`
-* **Server Name or IP:** `127.0.0.1`
-* **Port Number:** `8000`
+1. **Database Layer (`postgres.yaml`):**
+* Requires a `PersistentVolumeClaim` (2Gi).
+* Requires a `Deployment` (1 replica) using `postgres:15-alpine`.
+* Must override the Postgres initialization command to set `max_connections=350`.
+* Requires an internal K8s `Service` named `db` mapping port 5432.
 
 
-4. Fill out the specific API endpoint:
-* **HTTP Request Method:** `POST`
-* **Path:** `/purchase/1`
+2. **API Layer (`api.yaml`):**
+* Requires a `Deployment` targeting 3 replicas (Pods).
+* *Worker Math:* Each Pod must run exactly 2 Uvicorn workers (3 Pods x 2 workers = 6 total system workers).
+* Must implement a `RollingUpdate` strategy (`maxSurge: 1`, `maxUnavailable: 0`) to guarantee zero downtime.
+* Must include `readinessProbe` and `livenessProbe` pointing to a `/health` endpoint on port 8000.
+* Requires a `NodePort` Service mapping target port 8000 to node port 30000.
 
 
 
-### 📊 Step 4: Add Listeners (The Results)
+**🚀 Required Actions from the LLM**
 
-Listeners capture the data so you can see if the database locked up or succeeded.
-
-1. Right-click your **Thread Group**.
-2. Hover over **Add** -> **Listener** -> Click **Summary Report**.
-3. Right-click your **Thread Group** again.
-4. Hover over **Add** -> **Listener** -> Click **View Results Tree**.
-
-### 🚀 Step 5: Run the Stress Test
-
-1. Make sure your Docker container is running in the background.
-2. Click the green **Play Button** (Start) in the top toolbar of JMeter. (It may ask you to save the test plan first; you can just save it to your desktop).
-3. Click on the **Summary Report** in the left panel to watch the numbers roll in live.
-
-### ⚠️ A Critical Warning for JMeter Memory
-
-The **View Results Tree** listener saves the entire payload of every single request. Storing 10,000 full HTTP responses in RAM can sometimes crash the JMeter application itself! If JMeter freezes during the test, delete the "View Results Tree" listener, leave only the "Summary Report", and run it again.
+1. Provide the updated `CMD` line for the `Dockerfile` to adjust the Uvicorn workers to 2.
+2. Provide the Python code snippet to add a `/health` endpoint to `main.py` for the K8s probes.
+3. Generate the complete, production-ready `postgres.yaml` and `api.yaml` K8s manifests based on the specifications above.
+4. Provide the exact `kubectl` commands to apply the infrastructure and trigger a zero-downtime rolling restart.
