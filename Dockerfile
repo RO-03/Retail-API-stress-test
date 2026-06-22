@@ -11,5 +11,5 @@ COPY . .
 
 EXPOSE 8000
 
-# Added --workers 4 to spawn multiple processes
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "6"]
+# K8s: 3 pods x 2 workers = 6 total system workers (stress-tested optimum)
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

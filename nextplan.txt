@@ -1,6 +1,4 @@
-Here is the complete architectural context and migration plan. You can copy and paste this entire block into any LLM to instantly bring it up to speed on your project's current state and generate the exact Kubernetes manifests you need.
-
----
+Here is the complete architectural context and migration plan
 
 **🐘 Project Context: FastAPI Retail Store Kubernetes Migration**
 

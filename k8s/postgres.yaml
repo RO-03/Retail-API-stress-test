@@ -1,0 +1,95 @@
+# =============================================================
+# postgres.yaml — PostgreSQL Database Layer
+# PersistentVolumeClaim + Deployment + ClusterIP Service
+# =============================================================
+
+# -------------------------------------------------------------------
+# 1. PersistentVolumeClaim: durable storage for Postgres data
+# -------------------------------------------------------------------
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+
+# -------------------------------------------------------------------
+# 2. Deployment: single Postgres replica with max_connections=350
+# -------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          # Use args instead of command to pass flags to the default ENTRYPOINT (docker-entrypoint.sh)
+          # This matches the docker-compose tuning validated by JMeter (pool_size=20, max_overflow=30)
+          args: ["-c", "max_connections=350"]
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: "user"
+            - name: POSTGRES_PASSWORD
+              value: "password"
+            - name: POSTGRES_DB
+              value: "retail_db"
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+          # Readiness probe: only route traffic once Postgres is ready to accept connections
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "user", "-d", "retail_db"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 10
+          # Liveness probe: restart the pod if Postgres stops accepting connections
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "user", "-d", "retail_db"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 5
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+
+---
+
+# -------------------------------------------------------------------
+# 3. Service: internal ClusterIP named 'db' — API pods connect via
+#    the hostname 'db' on port 5432 (mirrors docker-compose service name)
+# -------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432

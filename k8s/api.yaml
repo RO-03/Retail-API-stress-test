@@ -1,0 +1,100 @@
+# =============================================================
+# api.yaml — FastAPI Application Layer
+# Deployment (3 replicas, RollingUpdate) + NodePort Service
+# =============================================================
+
+# -------------------------------------------------------------------
+# 1. Deployment: 3 replicas × 2 Uvicorn workers = 6 total workers
+#    (matches the stress-tested optimal throughput for this hardware)
+# -------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: retail-api
+  labels:
+    app: retail-api
+spec:
+  replicas: 3
+
+  # Zero-downtime rolling update:
+  #   maxSurge: 1      — allow 1 extra pod above desired count during update
+  #   maxUnavailable: 0 — never take a pod down before a new one is ready
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+
+  selector:
+    matchLabels:
+      app: retail-api
+
+  template:
+    metadata:
+      labels:
+        app: retail-api
+    spec:
+      containers:
+        - name: retail-api
+          # Replace <your-dockerhub-username> with your actual image name after:
+          #   docker build -t <your-dockerhub-username>/retail-api:latest .
+          #   docker push <your-dockerhub-username>/retail-api:latest
+          # For Minikube: use 'minikube image load retail-api:latest' instead of pushing
+          image: retail-api:latest
+          imagePullPolicy: IfNotPresent   # use local image in Minikube / Docker Desktop
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://user:password@db:5432/retail_db"
+
+          # Readiness probe: K8s will only send traffic to this pod once /health returns 200.
+          # This prevents requests from hitting a pod whose DB connection is not yet established.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 6
+
+          # Liveness probe: K8s will restart the pod if /health fails repeatedly.
+          # Ensures unhealthy workers (e.g. DB connection lost) are automatically recycled.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 5
+
+          # Resource requests/limits tuned for local K8s (Minikube / Docker Desktop).
+          # Adjust for production based on actual profiling.
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+---
+
+# -------------------------------------------------------------------
+# 2. Service: NodePort — exposes the API on host port 30000
+#    Access via: http://localhost:30000  (Docker Desktop)
+#             or http://$(minikube ip):30000  (Minikube)
+# -------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: retail-api-service
+spec:
+  type: NodePort
+  selector:
+    app: retail-api
+  ports:
+    - protocol: TCP
+      port: 80          # ClusterIP port (internal cluster traffic)
+      targetPort: 8000  # Port the FastAPI container listens on
+      nodePort: 30000   # External host port (range: 30000–32767)

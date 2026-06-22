@@ -14,6 +14,19 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 # ==========================================
+# KUBERNETES HEALTH PROBE
+# ==========================================
+
+@app.get("/health", tags=["health"])
+def health_check(db: Session = Depends(auth.get_db)):
+    """K8s readiness & liveness probe — verifies app and DB connectivity."""
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"DB unavailable: {e}")
+
+# ==========================================
 # FRONTEND PAGE ROUTES
 # ==========================================
 
