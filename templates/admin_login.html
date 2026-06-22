@@ -1,26 +1,189 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Admin Login</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login — RetailStore</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0d0f14;
+            color: #e2e8f0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        /* Radial glow backdrop */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.09);
+            border-radius: 20px;
+            padding: 2.5rem 2.25rem;
+            width: 100%;
+            max-width: 400px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+            animation: fadeUp 0.4s ease;
+        }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .logo-icon {
+            font-size: 2.5rem;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        .logo h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6366f1, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.02em;
+        }
+        .logo p {
+            font-size: 0.82rem;
+            color: #64748b;
+            margin-top: 0.25rem;
+        }
+
+        .form-group { margin-bottom: 1rem; }
+        label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-bottom: 0.4rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        input {
+            width: 100%;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            padding: 0.65rem 0.9rem;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        input:focus {
+            border-color: rgba(99,102,241,0.6);
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+        }
+
+        .btn-submit {
+            width: 100%;
+            margin-top: 1.5rem;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 0.8rem;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.15s;
+            font-family: 'Inter', sans-serif;
+            letter-spacing: 0.02em;
+        }
+        .btn-submit:hover { opacity: 0.88; }
+        .btn-submit:active { transform: scale(0.98); }
+        .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .error-msg {
+            margin-top: 0.75rem;
+            background: rgba(239,68,68,0.1);
+            border: 1px solid rgba(239,68,68,0.25);
+            color: #f87171;
+            border-radius: 8px;
+            padding: 0.55rem 0.85rem;
+            font-size: 0.82rem;
+            text-align: center;
+            display: none;
+        }
+        .error-msg.show { display: block; animation: fadeUp 0.2s ease; }
+
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 1.25rem;
+            font-size: 0.8rem;
+            color: #475569;
+            text-decoration: none;
+        }
+        .back-link:hover { color: #94a3b8; }
+    </style>
 </head>
 <body>
-    <h2>Admin Access</h2>
+<div class="card">
+    <div class="logo">
+        <span class="logo-icon">🔐</span>
+        <h1>Admin Portal</h1>
+        <p>RetailStore Management System</p>
+    </div>
+
     <form id="login-form">
-        <input type="text" id="username" placeholder="Username" required><br><br>
-        <input type="password" id="password" placeholder="Password" required><br><br>
-        <button type="submit">Login</button>
+        <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" placeholder="Enter username" autocomplete="username" required>
+        </div>
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="Enter password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn-submit" id="login-btn">Sign In</button>
+        <p id="error-msg" class="error-msg">⚠️ Invalid credentials. Please try again.</p>
     </form>
-    <p id="error-msg" style="color:red;"></p>
 
-    <script>
-        document.getElementById('login-form').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            // FastAPI OAuth2 requires form data, not JSON
-            const formData = new URLSearchParams();
-            formData.append('username', document.getElementById('username').value);
-            formData.append('password', document.getElementById('password').value);
+    <a href="/" class="back-link">← Back to Store</a>
+</div>
 
+<script>
+    // Already logged in? Go to dashboard
+    if (localStorage.getItem('token')) {
+        window.location.href = '/admin/dashboard';
+    }
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('login-btn');
+        const errMsg = document.getElementById('error-msg');
+
+        btn.disabled = true;
+        btn.textContent = 'Signing in…';
+        errMsg.classList.remove('show');
+
+        const formData = new URLSearchParams();
+        formData.append('username', document.getElementById('username').value);
+        formData.append('password', document.getElementById('password').value);
+
+        try {
             const response = await fetch('/admin/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -30,11 +193,19 @@
             if (response.ok) {
                 const data = await response.json();
                 localStorage.setItem('token', data.access_token);
-                window.location.href = '/admin/dashboard'; // Redirect on success
+                window.location.href = '/admin/dashboard';
             } else {
-                document.getElementById('error-msg').innerText = "Invalid credentials";
+                errMsg.classList.add('show');
+                btn.disabled = false;
+                btn.textContent = 'Sign In';
             }
-        });
-    </script>
+        } catch {
+            errMsg.textContent = '⚠️ Network error. Please try again.';
+            errMsg.classList.add('show');
+            btn.disabled = false;
+            btn.textContent = 'Sign In';
+        }
+    });
+</script>
 </body>
 </html>

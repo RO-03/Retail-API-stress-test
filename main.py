@@ -1,5 +1,6 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import models, schemas, auth
@@ -8,9 +9,6 @@ from database import engine
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
-
-from fastapi import Request
-from fastapi.templating import Jinja2Templates
 
 # Initialize Jinja2 Templates
 templates = Jinja2Templates(directory="templates")
@@ -22,17 +20,17 @@ templates = Jinja2Templates(directory="templates")
 @app.get("/")
 def render_customer_page(request: Request):
     """Serves the Customer Storefront"""
-    return templates.TemplateResponse("customer.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="customer.html")
 
 @app.get("/admin")
 def render_admin_login(request: Request):
     """Serves the Admin Login Screen"""
-    return templates.TemplateResponse("admin_login.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="admin_login.html")
 
 @app.get("/admin/dashboard")
 def render_admin_dashboard(request: Request):
     """Serves the Secured Admin Dashboard"""
-    return templates.TemplateResponse("admin_dashboard.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="admin_dashboard.html")
 
 # ==========================================
 # PUBLIC CUSTOMER ROUTES
@@ -73,11 +71,15 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
     access_token = auth.create_access_token(data={"sub": admin.username})
     return {"access_token": access_token, "token_type": "bearer"}
 
+@app.get("/admin/items/all")
+def get_all_items(admin: models.Admin = Depends(auth.get_current_admin), db: Session = Depends(auth.get_db)):
+    """Admin: View all items"""
+    return db.query(models.Item).all()
+
 @app.post("/admin/items")
 def add_item(item: schemas.ItemCreate, admin: models.Admin = Depends(auth.get_current_admin), db: Session = Depends(auth.get_db)):
     """Admin: Add a new item to the store"""
-    # Pydantic dict() is deprecated in v2, but keeping it as in nextplan.txt
-    new_item = models.Item(**item.dict())
+    new_item = models.Item(**item.model_dump())
     db.add(new_item)
     db.commit()
     return {"message": "Item added successfully"}

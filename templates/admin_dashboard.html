@@ -1,88 +1,554 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Admin Dashboard</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard — RetailStore</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0d0f14;
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+
+        /* NAV */
+        nav {
+            background: rgba(15,17,24,0.95);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+            padding: 0 2rem;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .nav-brand {
+            font-size: 1.2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6366f1, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .nav-right { display: flex; align-items: center; gap: 0.75rem; }
+        .nav-user {
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+        .logout-btn {
+            background: rgba(239,68,68,0.1);
+            border: 1px solid rgba(239,68,68,0.25);
+            color: #f87171;
+            padding: 0.35rem 0.85rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            transition: background 0.2s;
+        }
+        .logout-btn:hover { background: rgba(239,68,68,0.2); }
+
+        /* LAYOUT */
+        .main-layout {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 1.5rem;
+            align-items: start;
+        }
+        @media (max-width: 860px) {
+            .main-layout { grid-template-columns: 1fr; }
+        }
+
+        /* PANEL */
+        .panel {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+        .panel-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #6366f1;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* FORM */
+        .form-group { margin-bottom: 0.85rem; }
+        label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 0.35rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.875rem;
+            padding: 0.55rem 0.8rem;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        input:focus {
+            border-color: rgba(99,102,241,0.5);
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 0.65rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            transition: opacity 0.15s, transform 0.15s;
+        }
+        .btn:hover { opacity: 0.85; }
+        .btn:active { transform: scale(0.98); }
+        .btn-primary { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; }
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.12);
+            color: #94a3b8;
+            margin-top: 0.5rem;
+        }
+        .btn-ghost:hover { background: rgba(255,255,255,0.04); }
+
+        /* STATS BAR */
+        .stats-bar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-chip {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 0.75rem 1rem;
+            flex: 1;
+            text-align: center;
+        }
+        .stat-chip .value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #a78bfa;
+            line-height: 1;
+        }
+        .stat-chip .lbl {
+            font-size: 0.7rem;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-top: 0.3rem;
+        }
+
+        /* TABLE */
+        .table-wrap { overflow-x: auto; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+        thead th {
+            text-align: left;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding: 0 0.75rem 0.75rem;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        tbody tr {
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            transition: background 0.15s;
+        }
+        tbody tr:hover { background: rgba(255,255,255,0.03); }
+        tbody td {
+            padding: 0.75rem;
+            color: #cbd5e1;
+            vertical-align: middle;
+        }
+        td.item-id {
+            font-weight: 700;
+            color: #6366f1;
+            font-size: 0.8rem;
+        }
+        td.item-name { font-weight: 500; color: #f1f5f9; }
+
+        .stock-pill {
+            display: inline-block;
+            font-size: 0.73rem;
+            font-weight: 600;
+            padding: 0.2rem 0.55rem;
+            border-radius: 99px;
+        }
+        .stock-ok   { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.2); }
+        .stock-low  { background: rgba(234,179,8,0.12);  color: #facc15; border: 1px solid rgba(234,179,8,0.2); }
+        .stock-zero { background: rgba(239,68,68,0.12);  color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+
+        /* INLINE ACTIONS */
+        .actions { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+        .stock-input {
+            width: 70px !important;
+            padding: 0.3rem 0.5rem !important;
+            font-size: 0.8rem !important;
+        }
+        .price-input {
+            width: 80px !important;
+            padding: 0.3rem 0.5rem !important;
+            font-size: 0.8rem !important;
+        }
+        .action-btn {
+            padding: 0.3rem 0.65rem;
+            border-radius: 6px;
+            border: none;
+            font-size: 0.78rem;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            transition: opacity 0.15s;
+            white-space: nowrap;
+        }
+        .action-btn:hover { opacity: 0.8; }
+        .btn-add-stock { background: rgba(99,102,241,0.15); color: #a78bfa; border: 1px solid rgba(99,102,241,0.25); }
+        .btn-price     { background: rgba(234,179,8,0.12);  color: #facc15; border: 1px solid rgba(234,179,8,0.2); }
+        .btn-delete    { background: rgba(239,68,68,0.12);  color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+
+        /* SPINNER */
+        .spinner {
+            width: 28px; height: 28px;
+            border: 3px solid rgba(99,102,241,0.2);
+            border-top-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            margin: 2rem auto;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* TOAST */
+        #toast {
+            position: fixed;
+            bottom: 1.5rem; right: 1.5rem;
+            padding: 0.75rem 1.25rem;
+            border-radius: 10px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.3s, transform 0.3s;
+            pointer-events: none;
+            z-index: 999;
+        }
+        #toast.show { opacity: 1; transform: translateY(0); }
+        #toast.success { background: rgba(34,197,94,0.15);  border: 1px solid rgba(34,197,94,0.3);  color: #4ade80; }
+        #toast.error   { background: rgba(239,68,68,0.15);  border: 1px solid rgba(239,68,68,0.3);  color: #f87171; }
+
+        /* SECTION HEADER */
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+        .section-header h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #f1f5f9;
+        }
+        .refresh-btn {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #64748b;
+            padding: 0.3rem 0.7rem;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            transition: color 0.15s;
+        }
+        .refresh-btn:hover { color: #94a3b8; }
+    </style>
 </head>
 <body>
-    <h1>Inventory Management</h1>
-    <button onclick="logout()">Logout</button>
-    
-    <h3>Add New Item</h3>
-    <input type="text" id="name" placeholder="Item Name">
-    <input type="number" id="price" placeholder="Price">
-    <input type="number" id="stock" placeholder="Initial Stock">
-    <button onclick="addItem()">Add Item</button>
 
-    <h3>Current Inventory</h3>
-    <div id="inventory-list"></div>
+<nav>
+    <span class="nav-brand">🛍️ RetailStore Admin</span>
+    <div class="nav-right">
+        <span class="nav-user" id="nav-user"></span>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+</nav>
 
-    <script>
-        // Security Check: If no token, kick back to login
-        const token = localStorage.getItem('token');
-        if (!token) window.location.href = '/admin';
+<div class="main-layout">
 
-        async function fetchAdminItems() {
-            // Reusing the public endpoint for viewing, but admin can see out-of-stock too if we create a specific route later.
-            const response = await fetch('/items');
-            const items = await response.json();
-            const container = document.getElementById('inventory-list');
-            container.innerHTML = '';
-            
-            items.forEach(item => {
-                container.innerHTML += `
-                    <div style="border:1px solid #000; padding:10px; margin:5px;">
-                        <b>${item.name}</b> - $${item.price} (Stock: ${item.stock})
-                        <br><br>
-                        <button onclick="addStock(${item.id})">Add +5 Stock</button>
-                        <button onclick="deleteItem(${item.id})" style="color:red;">Delete</button>
-                    </div>`;
+    <!-- LEFT: ADD ITEM PANEL -->
+    <aside>
+        <div class="panel">
+            <div class="panel-title">➕ Add New Item</div>
+            <div class="form-group">
+                <label for="new-name">Item Name</label>
+                <input type="text" id="new-name" placeholder="e.g. Blue Denim Jacket">
+            </div>
+            <div class="form-group">
+                <label for="new-price">Price ($)</label>
+                <input type="number" id="new-price" placeholder="e.g. 59.99" min="0" step="0.01">
+            </div>
+            <div class="form-group">
+                <label for="new-stock">Initial Stock</label>
+                <input type="number" id="new-stock" placeholder="e.g. 20" min="1" step="1">
+            </div>
+            <button class="btn btn-primary" onclick="addItem()">Add Item</button>
+            <button class="btn btn-ghost" onclick="fetchAdminItems()">↺ Refresh Inventory</button>
+        </div>
+    </aside>
+
+    <!-- RIGHT: INVENTORY TABLE -->
+    <main>
+        <!-- STATS -->
+        <div class="stats-bar" id="stats-bar">
+            <div class="stat-chip"><div class="value" id="stat-total">—</div><div class="lbl">Total Items</div></div>
+            <div class="stat-chip"><div class="value" id="stat-instock">—</div><div class="lbl">In Stock</div></div>
+            <div class="stat-chip"><div class="value" id="stat-outstock">—</div><div class="lbl">Out of Stock</div></div>
+        </div>
+
+        <div class="panel">
+            <div class="section-header">
+                <h2>Inventory</h2>
+                <button class="refresh-btn" onclick="fetchAdminItems()">↺ Refresh</button>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Item</th>
+                            <th>Price</th>
+                            <th>Stock</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventory-body">
+                        <tr><td colspan="5"><div class="spinner"></div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '/admin';
+
+    function showToast(msg, type = 'success') {
+        const t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = `show ${type}`;
+        setTimeout(() => { t.className = ''; }, 3000);
+    }
+
+    function authHeaders() {
+        return {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        };
+    }
+
+    function stockPill(stock) {
+        if (stock === 0) return `<span class="stock-pill stock-zero">Out of Stock</span>`;
+        if (stock <= 3) return `<span class="stock-pill stock-low">${stock}</span>`;
+        return `<span class="stock-pill stock-ok">${stock}</span>`;
+    }
+
+    async function fetchAdminItems() {
+        const tbody = document.getElementById('inventory-body');
+        tbody.innerHTML = '<tr><td colspan="5"><div class="spinner"></div></td></tr>';
+
+        try {
+            const res = await fetch('/admin/items/all', {
+                headers: { 'Authorization': `Bearer ${token}` }
             });
+
+            if (res.status === 401) {
+                logout();
+                return;
+            }
+
+            const items = await res.json();
+
+            // Update stats
+            const instock = items.filter(i => i.stock > 0).length;
+            document.getElementById('stat-total').textContent   = items.length;
+            document.getElementById('stat-instock').textContent  = instock;
+            document.getElementById('stat-outstock').textContent = items.length - instock;
+
+            if (items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#475569;padding:2rem;">No items yet. Add one!</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = items.map(item => `
+                <tr>
+                    <td class="item-id">#${item.id}</td>
+                    <td class="item-name">${item.name}</td>
+                    <td>$${item.price.toFixed(2)}</td>
+                    <td>${stockPill(item.stock)}</td>
+                    <td>
+                        <div class="actions">
+                            <input type="number" class="stock-input" id="stock-amt-${item.id}" placeholder="Qty" min="1" value="1">
+                            <button class="action-btn btn-add-stock" onclick="addStock(${item.id})">+ Stock</button>
+                            <input type="number" class="price-input" id="price-val-${item.id}" placeholder="Price" min="0" step="0.01" value="${item.price.toFixed(2)}">
+                            <button class="action-btn btn-price" onclick="updatePrice(${item.id})">Set Price</button>
+                            <button class="action-btn btn-delete" onclick="deleteItem(${item.id}, '${item.name}')">Delete</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+
+        } catch {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#f87171;padding:2rem;">⚠️ Failed to load inventory.</td></tr>';
+        }
+    }
+
+    async function addItem() {
+        const name  = document.getElementById('new-name').value.trim();
+        const price = parseFloat(document.getElementById('new-price').value);
+        const stock = parseInt(document.getElementById('new-stock').value);
+
+        if (!name || isNaN(price) || isNaN(stock) || stock < 1) {
+            showToast('⚠️ Please fill all fields correctly.', 'error');
+            return;
         }
 
-        async function addItem() {
-            const data = {
-                name: document.getElementById('name').value,
-                price: parseFloat(document.getElementById('price').value),
-                stock: parseInt(document.getElementById('stock').value)
-            };
-
-            await fetch('/admin/items', {
+        try {
+            const res = await fetch('/admin/items', {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}` // Passing the JWT Token
-                },
-                body: JSON.stringify(data)
+                headers: authHeaders(),
+                body: JSON.stringify({ name, price, stock })
             });
-            fetchAdminItems();
+            if (res.ok) {
+                showToast(`✅ "${name}" added!`, 'success');
+                document.getElementById('new-name').value  = '';
+                document.getElementById('new-price').value = '';
+                document.getElementById('new-stock').value = '';
+                fetchAdminItems();
+            } else if (res.status === 401) {
+                logout();
+            } else {
+                const err = await res.json().catch(() => ({}));
+                showToast(err.detail || '❌ Failed to add item.', 'error');
+            }
+        } catch {
+            showToast('❌ Network error.', 'error');
         }
+    }
 
-        async function addStock(id) {
-            await fetch(`/admin/items/${id}`, {
+    async function addStock(id) {
+        const amt = parseInt(document.getElementById(`stock-amt-${id}`).value);
+        if (isNaN(amt) || amt < 1) {
+            showToast('⚠️ Enter a valid quantity.', 'error');
+            return;
+        }
+        try {
+            const res = await fetch(`/admin/items/${id}`, {
                 method: 'PUT',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}` 
-                },
-                body: JSON.stringify({ stock_add: 5 })
+                headers: authHeaders(),
+                body: JSON.stringify({ stock_add: amt })
             });
-            fetchAdminItems();
+            if (res.ok) {
+                showToast(`✅ Added ${amt} units.`, 'success');
+                fetchAdminItems();
+            } else if (res.status === 401) {
+                logout();
+            } else {
+                showToast('❌ Failed to update stock.', 'error');
+            }
+        } catch {
+            showToast('❌ Network error.', 'error');
         }
+    }
 
-        async function deleteItem(id) {
-            await fetch(`/admin/items/${id}`, {
+    async function updatePrice(id) {
+        const price = parseFloat(document.getElementById(`price-val-${id}`).value);
+        if (isNaN(price) || price < 0) {
+            showToast('⚠️ Enter a valid price.', 'error');
+            return;
+        }
+        try {
+            const res = await fetch(`/admin/items/${id}`, {
+                method: 'PUT',
+                headers: authHeaders(),
+                body: JSON.stringify({ price })
+            });
+            if (res.ok) {
+                showToast(`✅ Price updated to $${price.toFixed(2)}.`, 'success');
+                fetchAdminItems();
+            } else if (res.status === 401) {
+                logout();
+            } else {
+                showToast('❌ Failed to update price.', 'error');
+            }
+        } catch {
+            showToast('❌ Network error.', 'error');
+        }
+    }
+
+    async function deleteItem(id, name) {
+        if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+        try {
+            const res = await fetch(`/admin/items/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            fetchAdminItems();
+            if (res.ok) {
+                showToast(`🗑️ "${name}" deleted.`, 'success');
+                fetchAdminItems();
+            } else if (res.status === 401) {
+                logout();
+            } else {
+                showToast('❌ Failed to delete item.', 'error');
+            }
+        } catch {
+            showToast('❌ Network error.', 'error');
         }
+    }
 
-        function logout() {
-            localStorage.removeItem('token');
-            window.location.href = '/admin';
-        }
+    function logout() {
+        localStorage.removeItem('token');
+        window.location.href = '/admin';
+    }
 
-        fetchAdminItems();
-    </script>
+    fetchAdminItems();
+</script>
 </body>
 </html>

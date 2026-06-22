@@ -10,5 +10,5 @@ class ItemCreate(BaseModel):
     stock: int
 
 class ItemUpdate(BaseModel):
-    price: float = None
-    stock_add: int = None # For restocking
+    price: float | None = None
+    stock_add: int | None = None # For restocking
