@@ -39,7 +39,7 @@ def render_admin_dashboard(request: Request):
 @app.get("/items")
 def view_items(db: Session = Depends(auth.get_db)):
     """Customer: View all available items"""
-    return db.query(models.Item).filter(models.Item.stock > 0).all()
+    return db.query(models.Item).order_by(models.Item.id).all()
 
 @app.post("/purchase/{item_id}")
 def purchase_item(item_id: int, db: Session = Depends(auth.get_db)):
@@ -74,7 +74,7 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
 @app.get("/admin/items/all")
 def get_all_items(admin: models.Admin = Depends(auth.get_current_admin), db: Session = Depends(auth.get_db)):
     """Admin: View all items"""
-    return db.query(models.Item).all()
+    return db.query(models.Item).order_by(models.Item.id).all()
 
 @app.post("/admin/items")
 def add_item(item: schemas.ItemCreate, admin: models.Admin = Depends(auth.get_current_admin), db: Session = Depends(auth.get_db)):
