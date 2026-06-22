@@ -4,10 +4,13 @@ uvicorn main:app --reload
 
 python stress_test.py
 
-docker stop my-retail-store
+docker stop retail_docker-api:latest
 
-docker rm my-retail-store
+docker rmi postgres:15-alpine
+docker rmi retail_docker-api:latest
 
+docker compose down
+docker system prune -a
 
 
 docker compose up -d --build
