@@ -1,42 +1,36 @@
-Here is the complete architectural context and migration plan
+🐘 Project Context: FastAPI K8s Ingress Migration
 
-**🐘 Project Context: FastAPI Retail Store Kubernetes Migration**
+Current State: A full-stack Retail Store inventory API running on a local Minikube cluster (allocated 6 CPUs and 8GB RAM on a Windows 11 host with WSL2). The system runs a PostgreSQL database (max_connections=350) and an API Deployment (3 Pods running 2 Uvicorn workers each).
+The Bottleneck: Currently, JMeter load testing (10,000 concurrent requests) is being routed directly through a Kubernetes NodePort service. Throughput is capped at ~146 req/sec due to kube-proxy and iptables overhead.
+The Goal: Migrate the external entry point from a NodePort to an Nginx Ingress Controller to achieve production-grade load balancing, bypass kube-proxy, and maximize throughput back to the 270+ req/sec baseline.
 
-**Current State:** A full-stack Retail Store inventory and purchasing API with a unified backend and Jinja2 frontend.
-**Recent Optimizations:** The application was recently migrated from SQLite to PostgreSQL to resolve I/O bottlenecks. Extensive JMeter stress testing (10,000 concurrent requests) revealed that the optimal hardware configuration is 6 total Uvicorn workers. The SQLAlchemy connection pool is explicitly tuned (pool_size=20, max_overflow=30) to prevent exhausting PostgreSQL's max_connections (set to 350). The API is currently split into Public Customer routes and Protected Admin routes (secured via bcrypt and JWT authentication).
-**The Goal:** Migrate the infrastructure from a single-node Docker Compose setup to a local Kubernetes (K8s) cluster. The primary objective is to implement a Horizontal Scaling architecture that supports Zero-Downtime deployments via K8s Rolling Updates.
+🛠️ The Tech Stack
 
-**🛠️ The Tech Stack**
+Backend: FastAPI, Python 3.11, Uvicorn
 
-* **Backend:** FastAPI, Python 3.11
-* **Server:** Uvicorn
-* **Database:** PostgreSQL 15 (Official Alpine Docker Image)
-* **Authentication:** JWT (python-jose), bcrypt (passlib)
-* **Frontend:** Jinja2Templates (serving HTML/Vanilla JS directly from FastAPI)
-* **Target Infrastructure:** Kubernetes (Minikube / Docker Desktop)
+Infrastructure: Minikube (Docker driver, WSL2 backend)
 
-**📋 The Target Kubernetes Architecture**
-The migration requires transitioning from a vertically scaled Docker setup (1 container, 6 workers) to a horizontally scaled Kubernetes setup. To respect local hardware CPU limits while maintaining the optimized 6-worker throughput, the architecture must be distributed:
+Target Router: Nginx Ingress Controller (Minikube Addon)
 
-1. **Database Layer (`postgres.yaml`):**
-* Requires a `PersistentVolumeClaim` (2Gi).
-* Requires a `Deployment` (1 replica) using `postgres:15-alpine`.
-* Must override the Postgres initialization command to set `max_connections=350`.
-* Requires an internal K8s `Service` named `db` mapping port 5432.
+Target Hostname: retail-store.local
 
+📋 The Migration Plan
+The migration requires locking down the internal API Service and exposing it solely through the Nginx Ingress routing table.
 
-2. **API Layer (`api.yaml`):**
-* Requires a `Deployment` targeting 3 replicas (Pods).
-* *Worker Math:* Each Pod must run exactly 2 Uvicorn workers (3 Pods x 2 workers = 6 total system workers).
-* Must implement a `RollingUpdate` strategy (`maxSurge: 1`, `maxUnavailable: 0`) to guarantee zero downtime.
-* Must include `readinessProbe` and `livenessProbe` pointing to a `/health` endpoint on port 8000.
-* Requires a `NodePort` Service mapping target port 8000 to node port 30000.
+Enable the Controller: Use Minikube's built-in addon system to deploy the Nginx Ingress Controller.
 
+Secure the API Layer (k8s/api.yaml): Convert the existing retail-api-service from type NodePort to type ClusterIP. This removes direct external access, forcing all traffic to pass through the Nginx proxy.
 
+Define the Routing Rules (k8s/ingress.yaml): Create a new Kubernetes Ingress manifest. It must listen for the host retail-store.local on the root path (/) and route traffic to the retail-api-service on port 8000.
 
-**🚀 Required Actions from the LLM**
+Local DNS Mapping: Provide the instructions for updating the Windows 11 hosts file to map retail-store.local to the Minikube IP.
 
-1. Provide the updated `CMD` line for the `Dockerfile` to adjust the Uvicorn workers to 2.
-2. Provide the Python code snippet to add a `/health` endpoint to `main.py` for the K8s probes.
-3. Generate the complete, production-ready `postgres.yaml` and `api.yaml` K8s manifests based on the specifications above.
-4. Provide the exact `kubectl` commands to apply the infrastructure and trigger a zero-downtime rolling restart.
+🚀 Required Actions from the LLM
+
+Provide the exact Minikube command to enable the Nginx Ingress addon.
+
+Provide the updated Service YAML block for k8s/api.yaml (switching to ClusterIP).
+
+Generate the complete, production-ready k8s/ingress.yaml file based on the specifications above.
+
+Provide the exact instructions for testing the new architecture, including how to configure the JMeter HTTP Request Defaults to target the new Nginx Ingress hostname.
