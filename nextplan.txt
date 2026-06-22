@@ -1,64 +1,61 @@
-relying on a programmatic approach to create your first user—often called "database seeding"—is a standard industry practice because it is repeatable and does not require external graphical tools.
+Stepping up to JMeter is exactly how enterprise engineers handle load testing. It is incredibly powerful because it gives you granular control over how the stress is applied to your server.
 
-We will create a quick, one-off Python script to generate your first admin user directly through your Docker container.
+Since you are running on Windows and already have the JDK and JMeter installed, here is the exact step-by-step guide to configuring your test for 10,000 concurrent purchases against your Dockerized FastAPI app.
 
-Here is how to do it step-by-step:
+### ⚙️ Step 1: Launch JMeter
 
-Step 1: Create the Seeding Script
-In your project root directory (alongside main.py), create a new file named create_admin.py and paste the following code into it:
+1. Navigate to your installed JMeter folder.
+2. Go into the `bin` directory.
+3. Double-click `jmeter.bat` to launch the graphical interface.
 
-Python
-from database import SessionLocal
-import models
-import auth
+### 👥 Step 2: Create a Thread Group (The Virtual Users)
 
-def create_superuser():
-    db = SessionLocal()
-    try:
-        # Check if an admin already exists to prevent duplicates
-        existing_admin = db.query(models.Admin).filter(models.Admin.username == "admin").first()
-        if existing_admin:
-            print("Admin user already exists!")
-            return
+The "Thread Group" represents your users.
 
-        # Hash the password and create the user
-        hashed_pw = auth.get_password_hash("admin123")
-        new_admin = models.Admin(username="admin", hashed_password=hashed_pw)
-        
-        db.add(new_admin)
-        db.commit()
-        print("✅ Success! Admin user created.")
-        print("Username: admin")
-        print("Password: admin123")
-        
-    except Exception as e:
-        print(f"❌ Error creating admin: {e}")
-    finally:
-        db.close()
+1. In the left panel, right-click on **Test Plan**.
+2. Hover over **Add** -> **Threads (Users)** -> Click **Thread Group**.
+3. In the new window, configure these exact settings:
+* **Number of Threads (users):** `10000`
+* **Ramp-up period (seconds):** `10`
+* **Loop Count:** `1`
 
-if __name__ == "__main__":
-    create_superuser()
-Step 2: Rebuild Your Containers
-Because you added a new Python file to your local directory, you need to rebuild your API image so Docker copies the new create_admin.py file into the container.
 
-Run this in your terminal:
 
-Bash
-docker compose up -d --build
-Step 3: Execute the Script Inside Docker
-Once the containers are back up and running, you can tell Docker to execute that specific file inside the running api container.
+> **Why a 10-second ramp-up?** If you set this to 0, JMeter attempts to open 10,000 TCP ports on your Windows machine in a single millisecond. Windows will usually block this to protect itself (a phenomenon called Ephemeral Port Exhaustion), and the test will fail before it even reaches Docker. A 10-second ramp-up means JMeter will add 1,000 new users every second, which is a massive but realistic spike!
 
-Run this command:
+### 🌐 Step 3: Configure the HTTP Request
 
-Bash
-docker compose exec api python create_admin.py
-You should see the success message printed in your terminal.
+Now we tell those 10,000 users exactly where to click.
 
-Step 4: Log In
-You can now navigate to http://localhost:8000/admin in your web browser.
+1. Right-click on your newly created **Thread Group**.
+2. Hover over **Add** -> **Sampler** -> Click **HTTP Request**.
+3. Fill out the web server details:
+* **Protocol [http]:** `http`
+* **Server Name or IP:** `127.0.0.1`
+* **Port Number:** `8000`
 
-Use the credentials you just generated:
 
-Username: admin
+4. Fill out the specific API endpoint:
+* **HTTP Request Method:** `POST`
+* **Path:** `/purchase/1`
 
-Password: admin123
+
+
+### 📊 Step 4: Add Listeners (The Results)
+
+Listeners capture the data so you can see if the database locked up or succeeded.
+
+1. Right-click your **Thread Group**.
+2. Hover over **Add** -> **Listener** -> Click **Summary Report**.
+3. Right-click your **Thread Group** again.
+4. Hover over **Add** -> **Listener** -> Click **View Results Tree**.
+
+### 🚀 Step 5: Run the Stress Test
+
+1. Make sure your Docker container is running in the background.
+2. Click the green **Play Button** (Start) in the top toolbar of JMeter. (It may ask you to save the test plan first; you can just save it to your desktop).
+3. Click on the **Summary Report** in the left panel to watch the numbers roll in live.
+
+### ⚠️ A Critical Warning for JMeter Memory
+
+The **View Results Tree** listener saves the entire payload of every single request. Storing 10,000 full HTTP responses in RAM can sometimes crash the JMeter application itself! If JMeter freezes during the test, delete the "View Results Tree" listener, leave only the "Summary Report", and run it again.
