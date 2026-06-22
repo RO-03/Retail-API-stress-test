@@ -41,3 +41,6 @@ postgres_data/
 # IDE files
 .vscode/
 .idea/
+
+#logs
+*.log
