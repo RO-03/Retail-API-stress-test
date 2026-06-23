@@ -187,7 +187,7 @@ Direct external access removed. All traffic now **must** pass through the Nginx 
 | `path` | `/` (Prefix) |
 | `backend.service.name` | `retail-api-service` |
 | `backend.service.port` | `8000` |
-| Key annotations | keepalive-connections: 64, proxy-buffering: off |
+| Key annotations | keepalive-connections: 64, keepalive-requests: 1000, keepalive-timeout: 60, proxy-buffering: off |
 
 ---
 
@@ -218,26 +218,32 @@ kubectl get ingress -n retail
 # retail-api-ingress   nginx   retail-store.local   192.168.49.2   80      30s
 ```
 
-#### Step 4 — Update the Windows hosts file (DNS mapping)
-Run **PowerShell as Administrator**:
-```powershell
-# Get the Minikube IP
-$minikubeIp = minikube ip
+#### Step 4 — Run Minikube Tunnel & Update the Windows hosts file (DNS mapping)
 
-# Append the mapping to the Windows hosts file
-Add-Content -Path "C:\Windows\System32\drivers\etc\hosts" -Value "`n$minikubeIp`tretail-store.local"
+Because you are using the **Docker driver on Windows**, the internal Minikube IP is not directly routable. You must run `minikube tunnel` to route traffic via localhost (`127.0.0.1`).
 
-# Verify
-Get-Content "C:\Windows\System32\drivers\etc\hosts" | Select-String "retail-store"
-```
+1. Open a separate PowerShell window and start the tunnel:
+   ```powershell
+   minikube tunnel
+   ```
+   *Keep this window open during testing.*
+
+2. Run **PowerShell as Administrator** in another window to append the mapping to the Windows hosts file:
+   ```powershell
+   # Append localhost mapping to the Windows hosts file
+   Add-Content -Path "C:\Windows\System32\drivers\etc\hosts" -Value "`n127.0.0.1`tretail-store.local"
+
+   # Verify
+   Get-Content "C:\Windows\System32\drivers\etc\hosts" | Select-String "retail-store"
+   ```
 
 #### Step 5 — Smoke test
 ```powershell
 # Test via curl (bypasses browser DNS cache)
-curl http://retail-store.local/health
+curl.exe http://retail-store.local/health
 # Expected: {"status":"ok"}
 
-curl http://retail-store.local/docs
+curl.exe http://retail-store.local/docs
 # Expected: 200 with Swagger UI HTML
 ```
 
@@ -266,7 +272,7 @@ Update **HTTP Request Defaults** in your JMeter test plan:
                                     │                                               │
  retail-store.local:80 ────────────►│  [Nginx Ingress Controller]                  │
    (via hosts file mapping          │    - ingressClassName: nginx                 │
-    to Minikube IP)                 │    - host: retail-store.local                │
+    to 127.0.0.1 + minikube tunnel) │    - host: retail-store.local                │
                                     │    - path: / → retail-api-service:8000       │
                                     │                   │                           │
                                     │        ClusterIP Service (port 8000)          │

@@ -19,7 +19,7 @@ docker compose logs -f
 
 
 
-
+Cmds for minikube
 
 # 1. Reset and start Minikube
 minikube stop
@@ -51,10 +51,10 @@ $pod = kubectl get pods -n retail -l app=retail-api -o jsonpath="{.items[0].meta
 kubectl exec $pod -n retail -- python create_admin.py
 kubectl exec $pod -n retail -- python seed_items.py
 
-#8.2 Powershell as administrator and execute
+#9.01. (optional) Powershell as administrator and execute
 Add-Content C:\Windows\System32\drivers\etc\hosts "127.0.0.1 retail-store.local"
 
-# 9. Access the service (creates a tunnel/opens in browser)
+# 9.1. Access the service (creates a tunnel/opens in browser)
 minikube service retail-api-service -n retail
 
 # Start the tunnel for jmeter
