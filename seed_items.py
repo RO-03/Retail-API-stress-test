@@ -6,7 +6,7 @@ def seed_items():
     try:
         if not db.query(models.Item).first():
             items = [
-                models.Item(name='Wireless Mouse', price=25.99, stock=50),
+                models.Item(name='Wireless Mouse', price=25.99, stock=15000),
                 models.Item(name='Mechanical Keyboard', price=89.50, stock=30),
                 models.Item(name='27-inch Monitor', price=210.00, stock=15),
                 models.Item(name='USB-C Hub', price=15.99, stock=100)

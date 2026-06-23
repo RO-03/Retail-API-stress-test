@@ -1,0 +1,52 @@
+# =============================================================
+# ingress.yaml — Nginx Ingress Controller Routing Rules
+#
+# Prerequisites:
+#   minikube addons enable ingress
+#
+# Host DNS (Windows hosts file):
+#   Add to C:\Windows\System32\drivers\etc\hosts:
+#   <minikube ip>   retail-store.local
+#   Get minikube ip with: minikube ip
+#
+# Apply with:
+#   kubectl apply -f k8s/ingress.yaml -n retail
+# =============================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: retail-api-ingress
+  annotations:
+    # Use the Nginx Ingress class provided by the Minikube addon
+    nginx.ingress.kubernetes.io/rewrite-target: /
+
+    # Optimisations for high-throughput load testing (10k concurrent JMeter users)
+    # Keep upstream connections alive to avoid reconnect overhead
+    nginx.ingress.kubernetes.io/upstream-keepalive-connections: "64"
+    nginx.ingress.kubernetes.io/upstream-keepalive-requests: "1000"
+    nginx.ingress.kubernetes.io/upstream-keepalive-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+
+    # Disable buffering so responses stream directly to the client
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+
+spec:
+  # Targets the Nginx Ingress Controller deployed by the Minikube addon
+  ingressClassName: nginx
+
+  rules:
+    - host: retail-store.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                # Must match the name in k8s/api.yaml Service metadata
+                name: retail-api-service
+                port:
+                  # Must match the ClusterIP port defined in k8s/api.yaml
+                  number: 8000
