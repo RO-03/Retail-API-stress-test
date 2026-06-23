@@ -1,6 +1,7 @@
 # =============================================================
 # api.yaml — FastAPI Application Layer
-# Deployment (3 replicas, RollingUpdate) + NodePort Service
+# Deployment (3 replicas, RollingUpdate) + ClusterIP Service
+# Traffic enters only via Nginx Ingress Controller (ingress.yaml)
 # =============================================================
 
 # -------------------------------------------------------------------
@@ -81,20 +82,19 @@ spec:
 ---
 
 # -------------------------------------------------------------------
-# 2. Service: NodePort — exposes the API on host port 30000
-#    Access via: http://localhost:30000  (Docker Desktop)
-#             or http://$(minikube ip):30000  (Minikube)
+# 2. Service: ClusterIP — internal-only, traffic enters via Nginx Ingress
+#    Direct NodePort access is intentionally removed.
+#    All external traffic is routed through the Ingress Controller.
 # -------------------------------------------------------------------
 apiVersion: v1
 kind: Service
 metadata:
   name: retail-api-service
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
     app: retail-api
   ports:
     - protocol: TCP
-      port: 80          # ClusterIP port (internal cluster traffic)
+      port: 8000        # ClusterIP port (matched by ingress.yaml backend)
       targetPort: 8000  # Port the FastAPI container listens on
-      nodePort: 30000   # External host port (range: 30000–32767)

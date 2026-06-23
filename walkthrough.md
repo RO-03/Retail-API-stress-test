@@ -154,3 +154,134 @@ kubectl rollout undo deployment/retail-api -n retail
                         │           PVC (2Gi)                       │
                         └─────────────────────────────────────────┘
 ```
+
+---
+
+## Phase 2 — Nginx Ingress Migration
+
+**Motivation:** NodePort routes traffic through kube-proxy/iptables, capping throughput at ~146 req/sec under 10k concurrent JMeter users. Replacing it with an Nginx Ingress Controller bypasses kube-proxy for direct upstream load balancing, recovering the 270+ req/sec baseline.
+
+---
+
+### Changes Made
+
+#### `k8s/api.yaml` — Service converted to ClusterIP
+```diff
+-  type: NodePort
+-  ports:
+-    - port: 80
+-      targetPort: 8000
+-      nodePort: 30000
++  type: ClusterIP
++  ports:
++    - port: 8000
++      targetPort: 8000
+```
+Direct external access removed. All traffic now **must** pass through the Nginx proxy.
+
+#### `k8s/ingress.yaml` — [NEW] Routing manifest
+| Field | Value |
+|---|---|
+| `ingressClassName` | `nginx` (Minikube addon) |
+| `host` | `retail-store.local` |
+| `path` | `/` (Prefix) |
+| `backend.service.name` | `retail-api-service` |
+| `backend.service.port` | `8000` |
+| Key annotations | keepalive-connections: 64, proxy-buffering: off |
+
+---
+
+### Deploy Steps
+
+#### Step 1 — Enable the Nginx Ingress addon
+```powershell
+minikube addons enable ingress
+
+# Wait for the controller pod to be Running (~60s)
+kubectl get pods -n ingress-nginx -w
+```
+
+#### Step 2 — Apply the updated manifests
+```powershell
+# Re-apply api.yaml to switch the Service type to ClusterIP
+kubectl apply -f k8s/api.yaml -n retail
+
+# Deploy the new Ingress routing rules
+kubectl apply -f k8s/ingress.yaml -n retail
+```
+
+#### Step 3 — Verify the Ingress is assigned
+```powershell
+kubectl get ingress -n retail
+# Expected output:
+# NAME                 CLASS   HOSTS               ADDRESS        PORTS   AGE
+# retail-api-ingress   nginx   retail-store.local   192.168.49.2   80      30s
+```
+
+#### Step 4 — Update the Windows hosts file (DNS mapping)
+Run **PowerShell as Administrator**:
+```powershell
+# Get the Minikube IP
+$minikubeIp = minikube ip
+
+# Append the mapping to the Windows hosts file
+Add-Content -Path "C:\Windows\System32\drivers\etc\hosts" -Value "`n$minikubeIp`tretail-store.local"
+
+# Verify
+Get-Content "C:\Windows\System32\drivers\etc\hosts" | Select-String "retail-store"
+```
+
+#### Step 5 — Smoke test
+```powershell
+# Test via curl (bypasses browser DNS cache)
+curl http://retail-store.local/health
+# Expected: {"status":"ok"}
+
+curl http://retail-store.local/docs
+# Expected: 200 with Swagger UI HTML
+```
+
+---
+
+### JMeter Configuration (10k concurrent users)
+
+Update **HTTP Request Defaults** in your JMeter test plan:
+
+| Setting | Old Value | New Value |
+|---|---|---|
+| **Protocol** | `http` | `http` |
+| **Server Name or IP** | `192.168.49.2` or `127.0.0.1` | `retail-store.local` |
+| **Port Number** | `30000` | `80` |
+
+> [!TIP]
+> If JMeter cannot resolve `retail-store.local`, add a DNS Cache Manager element to the test plan and set it to clear per iteration, or run JMeter from WSL2 where the hosts file is shared.
+
+---
+
+### Updated Architecture Diagram
+
+```
+                                    ┌──────────────────────────────────────────────┐
+                                    │              Kubernetes Cluster               │
+                                    │                                               │
+ retail-store.local:80 ────────────►│  [Nginx Ingress Controller]                  │
+   (via hosts file mapping          │    - ingressClassName: nginx                 │
+    to Minikube IP)                 │    - host: retail-store.local                │
+                                    │    - path: / → retail-api-service:8000       │
+                                    │                   │                           │
+                                    │        ClusterIP Service (port 8000)          │
+                                    │                   │                           │
+                                    │   ┌───────────────┼───────────────┐          │
+                                    │   ▼               ▼               ▼          │
+                                    │ [Pod 1]        [Pod 2]        [Pod 3]        │
+                                    │ 2 workers      2 workers      2 workers      │
+                                    │       = 6 total Uvicorn workers               │
+                                    │                   │                           │
+                                    │     ClusterIP Service (db:5432)               │
+                                    │                   │                           │
+                                    │           [Postgres Pod]                      │
+                                    │        max_connections=350                    │
+                                    │           PVC (2Gi)                           │
+                                    └──────────────────────────────────────────────┘
+```
+
