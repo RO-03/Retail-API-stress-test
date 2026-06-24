@@ -61,24 +61,28 @@ minikube service retail-api-service -n retail
 minikube tunnel
 
 
+cmds to execute for jenkins
 
+# 1. Start Minikube (if not already running)
+minikube start --cpus=6 --memory=8192 --driver=docker
 
+# 2. Build and start the Jenkins container in background
+docker compose -f docker-compose.jenkins.yml up -d --build
 
+# 3. View the logs of the running Jenkins container (follow)
+docker compose -f docker-compose.jenkins.yml logs -f
 
+# 4. Fetch the initial admin password to unlock Jenkins
+docker exec jenkins-retail cat /var/jenkins_home/secrets/initialAdminPassword
 
+# 5. Run the local tests to verify before pipeline runs
+& "C:\Users\Client\Documents\project\retail_store\venv\Scripts\python.exe" -m pytest tests/ -v
 
+# 6. Stop Jenkins containers without losing persistent data
+docker compose -f docker-compose.jenkins.yml stop
 
-
-
-
-
-
-
-
-
-
-
-
+# 7. Teardown Jenkins containers and clean up volumes (destroys configuration and jobs)
+docker compose -f docker-compose.jenkins.yml down -v
 PS C:\Users\Client> Get-CimInstance Win32_Processor | Select Name,NumberOfCores,NumberOfLogicalProcessors
 
 Name                                           NumberOfCores NumberOfLogicalProcessors

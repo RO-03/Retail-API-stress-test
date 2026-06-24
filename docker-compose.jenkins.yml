@@ -1,0 +1,66 @@
+# docker-compose.jenkins.yml
+#
+# Spins up a Jenkins LTS container configured for a Windows/WSL2 host that
+# runs Minikube with the Docker driver.
+#
+# Requirements on the host before running:
+#   1. minikube must be started   : minikube start
+#   2. Minikube kubeconfig must exist at %USERPROFILE%\.kube\config
+#   3. Docker Desktop / Docker Engine must be running
+#
+# Usage (from the project root in a WSL2 or PowerShell terminal):
+#   docker compose -f docker-compose.jenkins.yml up -d
+#   docker compose -f docker-compose.jenkins.yml logs -f jenkins   # follow logs
+#   docker compose -f docker-compose.jenkins.yml down              # stop & remove
+
+version: "3.9"
+
+services:
+  jenkins:
+    # Use the official LTS image as a base; we add Docker CLI + kubectl via
+    # the custom Dockerfile defined in the build context below.
+    build:
+      context: .
+      dockerfile: jenkins.Dockerfile
+
+    container_name: jenkins-retail
+
+    # Expose the Jenkins web UI and the agent JNLP port
+    ports:
+      - "8080:8080"   # Jenkins web UI  → http://localhost:8080
+      - "50000:50000" # Jenkins agent   (JNLP — only needed if adding agents)
+
+    # ── Volume mounts ──────────────────────────────────────────────────────
+    volumes:
+      # Persist Jenkins home so jobs/plugins survive container restarts
+      - jenkins_home:/var/jenkins_home
+
+      # Share the host Docker socket so Jenkins can run `docker build`.
+      # On Windows/Docker Desktop this path is exposed by Docker Desktop itself.
+      - /var/run/docker.sock:/var/run/docker.sock
+
+      # Mount the host kubeconfig so `kubectl` inside Jenkins can reach Minikube.
+      # Adjust the left-hand path if your kubeconfig lives elsewhere.
+      # WSL2 path  : /root/.kube/config   (maps to Windows %USERPROFILE%\.kube\config)
+      # Windows path shown for reference — use the WSL2 path when running via WSL2.
+      - ${USERPROFILE}/.kube:/root/.kube:ro
+
+      # Mount the Minikube state directory so the Docker-env certificates are
+      # available (required by `minikube docker-env`).
+      - ${USERPROFILE}/.minikube:/root/.minikube:ro
+
+    # ── Environment ────────────────────────────────────────────────────────
+    environment:
+      # Skip the Jenkins setup wizard (you still set the admin password below)
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=false
+
+      # Tell Docker CLI where the host socket is (redundant but explicit)
+      - DOCKER_HOST=unix:///var/run/docker.sock
+
+    # Drop into the jenkins user but add it to the docker group so socket access works
+    # (handled inside the Dockerfile; kept here for documentation)
+    restart: unless-stopped
+
+volumes:
+  jenkins_home:
+    driver: local

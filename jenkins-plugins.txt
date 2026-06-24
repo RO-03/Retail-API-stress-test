@@ -1,0 +1,30 @@
+# jenkins-plugins.txt
+# Pre-installed Jenkins plugins for the Retail API CI/CD pipeline.
+# Installed at image build time via jenkins-plugin-cli.
+#
+# Format: <plugin-id>:<version>  OR  <plugin-id>  (picks latest compatible)
+# Reference: https://plugins.jenkins.io/
+
+# ── Pipeline core ─────────────────────────────────────────────────────────────
+workflow-aggregator        # Declarative + Scripted Pipeline
+pipeline-stage-view        # Pipeline stage visualization in classic UI
+blueocean                  # Modern Blue Ocean UI (optional but highly recommended)
+
+# ── SCM ───────────────────────────────────────────────────────────────────────
+git                        # Git SCM integration
+github                     # GitHub webhook + status updates (optional)
+
+# ── Test reporting ────────────────────────────────────────────────────────────
+junit                      # Publish JUnit XML results (used in the Test stage post block)
+
+# ── Credentials & secrets ─────────────────────────────────────────────────────
+credentials                # Core credentials management
+credentials-binding        # Inject credentials as env vars in pipeline steps
+plain-credentials          # Username/password credential type
+
+# ── Build tools ───────────────────────────────────────────────────────────────
+docker-workflow             # docker.build() / docker.image() pipeline steps
+docker-commons             # Shared Docker tooling for other Docker plugins
+
+# ── Workspace management ──────────────────────────────────────────────────────
+ws-cleanup                 # Optional: clean workspace before/after builds

@@ -44,3 +44,8 @@ postgres_data/
 
 #logs
 *.log
+
+# CI/CD artifacts
+test-results.xml
+.ci_venv/
+test_retail.db
