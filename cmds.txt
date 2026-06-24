@@ -110,15 +110,11 @@ kubectl exec $POD_NAME -n retail -- python create_admin.py
 # 8.2.3. Execute the inventory seeding script
 kubectl exec $POD_NAME -n retail -- python seed_items.py
 
-#9.01. (optional) Powershell as administrator and execute
-Add-Content C:\Windows\System32\drivers\etc\hosts "127.0.0.1 retail-store.local"
-
 # 9.1. Access the service (creates a tunnel/opens in browser)
 minikube service retail-api-service -n retail
 
 # Start the tunnel for jmeter
 minikube tunnel
-
 
 
 

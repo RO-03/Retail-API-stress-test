@@ -3,13 +3,13 @@ name: Retail API — CI/CD Pipeline
 # ─── Trigger ───────────────────────────────────────────────────────────────────
 on:
   push:
-    branches: [ main ]
+    branches: [main]
 
 # ─── Single job (sequential steps) on the local WSL2 runner ────────────────────
 jobs:
   deploy:
     name: Test → Build → Deploy
-    runs-on: self-hosted   # GitHub Actions Self-Hosted Runner inside WSL2 Ubuntu
+    runs-on: self-hosted # GitHub Actions Self-Hosted Runner inside WSL2 Ubuntu
 
     steps:
       # ─────────────────────────────────────────────────────────────────────────
@@ -19,20 +19,32 @@ jobs:
         uses: actions/checkout@v4
 
       # ─────────────────────────────────────────────────────────────────────────
-      # STEP 2 — Unit Tests (pytest)
-      # Abort the pipeline immediately on any test failure.
+      # STEP 2 — Unit Tests (pytest) via Miniconda
+      # Bypasses Ubuntu's PEP-668 externally-managed-environment restriction
       # ─────────────────────────────────────────────────────────────────────────
-      - name: Install Python dependencies
+      - name: Install Python dependencies (Conda)
         run: |
-          python3 -m pip install --upgrade pip
+          echo "Initializing Conda..."
+          source ~/miniconda3/etc/profile.d/conda.sh
+
+          echo "Creating a fresh Conda environment..."
+          conda create -y -n retail-test python=3.11
+
+          echo "Activating environment and installing dependencies..."
+          conda activate retail-test
+          pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest httpx
 
       - name: Run pytest unit tests
         run: |
+          echo "Re-activating Conda environment for testing..."
+          source ~/miniconda3/etc/profile.d/conda.sh
+          conda activate retail-test
+
           pytest tests/test_api.py -v --tb=short
         env:
-          DATABASE_URL: "sqlite:///./test_retail.db"   # lightweight in-memory DB for unit tests
+          DATABASE_URL: "sqlite:///./test_retail.db" # lightweight in-memory DB for unit tests
 
       # ─────────────────────────────────────────────────────────────────────────
       # STEP 3 — Performance Tests (JMeter via Docker)
@@ -58,6 +70,10 @@ jobs:
 
       - name: Evaluate JMeter results (Quality Gate)
         run: |
+          echo "Re-activating Conda environment for evaluation script..."
+          source ~/miniconda3/etc/profile.d/conda.sh
+          conda activate retail-test
+
           python3 tests/check_performance.py results.csv
         # Exits 1 and aborts the pipeline if error rate > 0% or throughput < threshold
 
