@@ -19,8 +19,105 @@ docker compose logs -f
 
 
 
+Cmds for minikube
+
+# 1. Reset and start Minikube
+minikube stop
+minikube delete
+minikube start --cpus=6 --memory=8192 --driver=docker
+
+# 2. Point Docker CLI to Minikube's Docker daemon
+& minikube -p minikube docker-env --shell powershell | Invoke-Expression
+
+# 3. Build the Docker image directly inside Minikube's daemon
+docker build -t retail-api:latest .
+
+# 4. Enable the Ingress addon in Minikube
+minikube addons enable ingress
+
+# 5. Create the namespace
+kubectl create namespace retail
+
+# 6. Deploy the database and API into the 'retail' namespace
+kubectl apply -f k8s/postgres.yaml -n retail
+kubectl apply -f k8s/api.yaml -n retail
+kubectl apply -f k8s/ingress.yaml -n retail
+
+# 7. Wait for the API deployment to be fully ready
+kubectl rollout status deployment/retail-api -n retail
+
+# 8. Create the admin user inside the running API pod
+$pod = kubectl get pods -n retail -l app=retail-api -o jsonpath="{.items[0].metadata.name}"
+kubectl exec $pod -n retail -- python create_admin.py
+kubectl exec $pod -n retail -- python seed_items.py
+
+#9.01. (optional) Powershell as administrator and execute
+Add-Content C:\Windows\System32\drivers\etc\hosts "127.0.0.1 retail-store.local"
+
+# 9.1. Access the service (creates a tunnel/opens in browser)
+minikube service retail-api-service -n retail
+
+# Start the tunnel for jmeter
+minikube tunnel
 
 
+Cmds for minikube WSL2
+
+# 1. Reset and start Minikube
+minikube stop
+minikube delete
+minikube start --cpus=6 --memory=8192 --driver=docker
+
+# 2.1 delte old IP
+sudo sed -i '/retail-store.local/d' /etc/hosts
+
+# 2.2 Add the newly generated Minikube IP
+echo "$(minikube ip)  retail-store.local" | sudo tee -a /etc/hosts
+
+# 2.3 Point Docker CLI to Minikube's Docker daemon
+eval $(minikube docker-env)
+
+# 3. Build the Docker image directly inside Minikube's daemon
+docker build -t retail-api:latest .
+
+# 4. Enable the Ingress addon in Minikube
+minikube addons enable ingress
+
+# 5. Create the namespace
+kubectl create namespace retail
+
+# 6. Deploy the database and API into the 'retail' namespace
+kubectl apply -f k8s/postgres.yaml -n retail
+kubectl apply -f k8s/api.yaml -n retail
+kubectl apply -f k8s/ingress.yaml -n retail
+
+# 7. Wait for the API deployment to be fully ready
+kubectl rollout status deployment/retail-api -n retail
+
+# 8.1 separate terminal, port forward for accessing the API
+kubectl port-forward -n ingress-nginx service/ingress-nginx-controller 8080:80
+
+# 8.1.1 verify accessing
+curl -H "Host: retail-store.local" http://localhost:8080/health
+
+# 8.2 Create the admin user inside the running API pod
+# 8.2.1. Grab the name of one of your API pods
+POD_NAME=$(kubectl get pods -n retail -l app=retail-api -o jsonpath="{.items[0].metadata.name}")
+
+# 8.2.2. Execute the user creation script
+kubectl exec $POD_NAME -n retail -- python create_admin.py
+
+# 8.2.3. Execute the inventory seeding script
+kubectl exec $POD_NAME -n retail -- python seed_items.py
+
+#9.01. (optional) Powershell as administrator and execute
+Add-Content C:\Windows\System32\drivers\etc\hosts "127.0.0.1 retail-store.local"
+
+# 9.1. Access the service (creates a tunnel/opens in browser)
+minikube service retail-api-service -n retail
+
+# Start the tunnel for jmeter
+minikube tunnel
 
 
 

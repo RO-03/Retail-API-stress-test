@@ -1,61 +1,51 @@
-Stepping up to JMeter is exactly how enterprise engineers handle load testing. It is incredibly powerful because it gives you granular control over how the stress is applied to your server.
+📋 Project Context: FastAPI Hybrid-Cloud CI/CD (GitHub Actions + Minikube)
 
-Since you are running on Windows and already have the JDK and JMeter installed, here is the exact step-by-step guide to configuring your test for 10,000 concurrent purchases against your Dockerized FastAPI app.
+Current Architecture: A high-concurrency Retail Store API (FastAPI, Python 3.11, PostgreSQL 15). The infrastructure runs locally on a Windows 11 machine using WSL2, Docker Desktop, and Minikube (allocated 6 CPUs, 8GB RAM).
+Traffic Flow: External traffic hits an Nginx Ingress Controller (retail-store.local) -> routes to a ClusterIP Service -> load-balances across 3 API Pods (each running 2 Uvicorn workers).
+The Orchestrator: We are bypassing GitHub's cloud runners to avoid network isolation. We are using a GitHub Actions Self-Hosted Runner installed directly inside the local WSL2 Ubuntu environment. This allows GitHub to securely trigger deployments on the local Minikube cluster.
+The Goal: Generate a complete .github/workflows/deploy.yml pipeline that integrates Pytest unit tests, JMeter load testing (batches.jmx), and zero-downtime Kubernetes deployments.
 
-### ⚙️ Step 1: Launch JMeter
+📂 Repository Structure
 
-1. Navigate to your installed JMeter folder.
-2. Go into the `bin` directory.
-3. Double-click `jmeter.bat` to launch the graphical interface.
+Plaintext
+/
+├── main.py, database.py, models.py, schemas.py, auth.py
+├── requirements.txt
+├── Dockerfile
+├── k8s/
+│   ├── postgres.yaml, api.yaml, ingress.yaml
+├── tests/
+│   ├── test_api.py (pytest suite)
+│   └── check_performance.py (Custom script to parse JMeter logs)
+└── batches.jmx (JMeter Test Plan)
+⚙️ Pipeline Requirements (deploy.yml)
+The workflow must trigger on pushes to the main branch, use runs-on: self-hosted, and execute the following sequential steps:
 
-### 👥 Step 2: Create a Thread Group (The Virtual Users)
+Checkout: Pull the latest repository code.
 
-The "Thread Group" represents your users.
+Unit Testing: Install requirements.txt and run pytest tests/. Abort if tests fail.
 
-1. In the left panel, right-click on **Test Plan**.
-2. Hover over **Add** -> **Threads (Users)** -> Click **Thread Group**.
-3. In the new window, configure these exact settings:
-* **Number of Threads (users):** `10000`
-* **Ramp-up period (seconds):** `10`
-* **Loop Count:** `1`
+Performance Testing (JMeter): * Execute the JMeter test plan in CLI mode: jmeter -n -t batches.jmx -l results.csv.
 
+Constraint: Run JMeter using an official Docker container (e.g., justb4/jmeter) mapped to the repository workspace so we don't have to install Java/JMeter natively on the WSL runner.
 
+Execute the custom tests/check_performance.py script to evaluate results.csv. Abort the pipeline if the error rate > 0% or if throughput drops below acceptable thresholds.
 
-> **Why a 10-second ramp-up?** If you set this to 0, JMeter attempts to open 10,000 TCP ports on your Windows machine in a single millisecond. Windows will usually block this to protect itself (a phenomenon called Ephemeral Port Exhaustion), and the test will fail before it even reaches Docker. A 10-second ramp-up means JMeter will add 1,000 new users every second, which is a massive but realistic spike!
+Build & Register Image: Point the runner's Docker CLI to Minikube's internal daemon (eval $(minikube docker-env)) and build the retail-api:latest image so K8s can access it instantly.
 
-### 🌐 Step 3: Configure the HTTP Request
+Deploy: Execute kubectl rollout restart deployment retail-api-deployment.
 
-Now we tell those 10,000 users exactly where to click.
+Verify: Use kubectl rollout status to guarantee all 3 replicas spin up and pass their /health readiness probes without dropping traffic.
 
-1. Right-click on your newly created **Thread Group**.
-2. Hover over **Add** -> **Sampler** -> Click **HTTP Request**.
-3. Fill out the web server details:
-* **Protocol [http]:** `http`
-* **Server Name or IP:** `127.0.0.1`
-* **Port Number:** `8000`
+🚀 Required Deliverables from the LLM
 
+The Workflow YAML: Generate the complete, production-grade .github/workflows/deploy.yml file matching the exact steps and constraints above.
 
-4. Fill out the specific API endpoint:
-* **HTTP Request Method:** `POST`
-* **Path:** `/purchase/1`
+The Evaluation Script: Provide the Python code for tests/check_performance.py using the standard csv module to parse the JMeter results, calculate the error rate, and enforce a sys.exit(1) hard-fail if performance degrades.
 
+Runner Execution: Provide a brief reminder on how to ensure the WSL2 self-hosted runner has the necessary permissions to run Docker and Kubectl commands.
 
+How the JMeter Integration Works
+By asking the LLM to run JMeter via a Docker container in Step 3, you keep your WSL2 environment completely clean. You won't need to install Java Development Kits or configure JMeter system variables. The pipeline will pull a temporary JMeter container, map your batches.jmx file into it, fire the 10,000 requests against your Nginx Ingress, output the CSV, and then instantly destroy the JMeter container.
 
-### 📊 Step 4: Add Listeners (The Results)
-
-Listeners capture the data so you can see if the database locked up or succeeded.
-
-1. Right-click your **Thread Group**.
-2. Hover over **Add** -> **Listener** -> Click **Summary Report**.
-3. Right-click your **Thread Group** again.
-4. Hover over **Add** -> **Listener** -> Click **View Results Tree**.
-
-### 🚀 Step 5: Run the Stress Test
-
-1. Make sure your Docker container is running in the background.
-2. Click the green **Play Button** (Start) in the top toolbar of JMeter. (It may ask you to save the test plan first; you can just save it to your desktop).
-3. Click on the **Summary Report** in the left panel to watch the numbers roll in live.
-
-### ⚠️ A Critical Warning for JMeter Memory
-
-The **View Results Tree** listener saves the entire payload of every single request. Storing 10,000 full HTTP responses in RAM can sometimes crash the JMeter application itself! If JMeter freezes during the test, delete the "View Results Tree" listener, leave only the "Summary Report", and run it again.
+The Python script (check_performance.py) then acts as your automated Quality Assurance engineer, strictly enforcing the 0.00% error rate you achieved earlier before allowing the K8s deployment to proceed.

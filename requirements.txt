@@ -9,3 +9,6 @@ passlib
 bcrypt==3.2.2
 python-multipart
 jinja2
+# ── testing ──
+pytest
+httpx
