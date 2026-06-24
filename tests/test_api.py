@@ -34,14 +34,7 @@ from main import app
 
 # ─── Test database setup ─────────────────────────────────────────────────────
 
-engine_test = create_engine(
-    TEST_DB_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in TEST_DB_URL else {},
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine_test)
-
-# Create all tables in the test DB
-models.Base.metadata.create_all(bind=engine_test)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=database.engine)
 
 
 def override_get_db():
