@@ -1,0 +1,122 @@
+name: Retail API — CI/CD Pipeline
+
+# ─── Trigger ───────────────────────────────────────────────────────────────────
+on:
+  push:
+    branches: [ main ]
+
+# ─── Single job (sequential steps) on the local WSL2 runner ────────────────────
+jobs:
+  deploy:
+    name: Test → Build → Deploy
+    runs-on: self-hosted   # GitHub Actions Self-Hosted Runner inside WSL2 Ubuntu
+
+    steps:
+      # ─────────────────────────────────────────────────────────────────────────
+      # STEP 1 — Checkout
+      # ─────────────────────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ─────────────────────────────────────────────────────────────────────────
+      # STEP 2 — Unit Tests (pytest)
+      # Abort the pipeline immediately on any test failure.
+      # ─────────────────────────────────────────────────────────────────────────
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest httpx
+
+      - name: Run pytest unit tests
+        run: |
+          pytest tests/test_api.py -v --tb=short
+        env:
+          DATABASE_URL: "sqlite:///./test_retail.db"   # lightweight in-memory DB for unit tests
+
+      # ─────────────────────────────────────────────────────────────────────────
+      # STEP 3 — Performance Tests (JMeter via Docker)
+      # JMeter runs inside a throwaway container — no Java/JMeter install needed.
+      # The container mounts the repo workspace so it can read batches.jmx and
+      # write results.csv back to the host filesystem.
+      # ─────────────────────────────────────────────────────────────────────────
+      - name: Run JMeter load test (Docker container)
+        run: |
+          docker run --rm \
+            --network host \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            justb4/jmeter:5.6.3 \
+            -n \
+            -t batches.jmx \
+            -l results.csv \
+            -e \
+            -o jmeter-report \
+            -j jmeter.log
+        # --network host → JMeter can reach retail-store.local via the host's /etc/hosts
+        # -e -o jmeter-report → also generate an HTML dashboard (optional artifact)
+
+      - name: Evaluate JMeter results (Quality Gate)
+        run: |
+          python3 tests/check_performance.py results.csv
+        # Exits 1 and aborts the pipeline if error rate > 0% or throughput < threshold
+
+      # ─────────────────────────────────────────────────────────────────────────
+      # STEP 4 — Build & register image inside Minikube's Docker daemon
+      # 'eval $(minikube docker-env)' points the shell's Docker CLI at Minikube's
+      # internal daemon, so the image is instantly available to K8s without a
+      # registry push.
+      # ─────────────────────────────────────────────────────────────────────────
+      - name: Build Docker image into Minikube daemon
+        run: |
+          eval $(minikube docker-env)
+          docker build -t retail-api:latest .
+
+      # ─────────────────────────────────────────────────────────────────────────
+      # STEP 5 — Deploy: rolling restart triggers K8s to pull the new image
+      # ─────────────────────────────────────────────────────────────────────────
+      - name: Apply latest K8s manifests
+        run: |
+          kubectl apply -f k8s/postgres.yaml -n retail
+          kubectl apply -f k8s/api.yaml      -n retail
+          kubectl apply -f k8s/ingress.yaml  -n retail
+
+      - name: Trigger rolling restart of retail-api deployment
+        run: |
+          kubectl rollout restart deployment retail-api -n retail
+
+      # ─────────────────────────────────────────────────────────────────────────
+      # STEP 6 — Verify: wait for all 3 replicas to pass their /health probes
+      # Fails the pipeline (and rolls back) if pods don't become Ready in 3 min.
+      # ─────────────────────────────────────────────────────────────────────────
+      - name: Verify rollout — wait for all replicas to be ready
+        run: |
+          kubectl rollout status deployment/retail-api -n retail --timeout=180s
+
+      - name: Confirm pod readiness via /health probe
+        run: |
+          sleep 5
+          READY=$(kubectl get pods -n retail -l app=retail-api \
+            --field-selector=status.phase=Running \
+            -o jsonpath='{.items[*].status.containerStatuses[*].ready}' \
+            | tr ' ' '\n' | grep -c "true")
+          echo "Ready pods: $READY"
+          if [ "$READY" -lt 3 ]; then
+            echo "ERROR: Expected 3 ready pods, got $READY"
+            exit 1
+          fi
+          echo "✅ All 3 replicas are healthy — deployment successful."
+
+      # ─────────────────────────────────────────────────────────────────────────
+      # STEP 7 — Upload artifacts (always, even if the job failed)
+      # ─────────────────────────────────────────────────────────────────────────
+      - name: Upload JMeter results as pipeline artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jmeter-results-${{ github.run_number }}
+          path: |
+            results.csv
+            jmeter.log
+            jmeter-report/
+          retention-days: 30
