@@ -1,6 +1,7 @@
-from database import SessionLocal
-import models
-import auth
+from app.core.database import SessionLocal
+import app.models.item as models
+from app.services.auth import get_password_hash
+
 
 def create_superuser():
     db = SessionLocal()
@@ -12,19 +13,20 @@ def create_superuser():
             return
 
         # Hash the password and create the user
-        hashed_pw = auth.get_password_hash("admin123")
+        hashed_pw = get_password_hash("admin123")
         new_admin = models.Admin(username="admin", hashed_password=hashed_pw)
-        
+
         db.add(new_admin)
         db.commit()
         print("✅ Success! Admin user created.")
         print("Username: admin")
         print("Password: admin123")
-        
+
     except Exception as e:
         print(f"❌ Error creating admin: {e}")
     finally:
         db.close()
+
 
 if __name__ == "__main__":
     create_superuser()

@@ -1,5 +1,6 @@
-from database import SessionLocal
-import models
+from app.core.database import SessionLocal
+import app.models.item as models
+
 
 def seed_items():
     db = SessionLocal()
@@ -20,6 +21,7 @@ def seed_items():
         print(f'❌ Error seeding items: {e}')
     finally:
         db.close()
+
 
 if __name__ == '__main__':
     seed_items()

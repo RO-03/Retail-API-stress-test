@@ -12,4 +12,4 @@ COPY . .
 EXPOSE 8000
 
 # K8s: 3 pods x 2 workers = 6 total system workers (stress-tested optimum)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

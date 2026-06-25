@@ -27,14 +27,14 @@ from sqlalchemy.orm import sessionmaker
 # ── Override DATABASE_URL before importing any app module ─────────────────────
 TEST_DB_URL = os.environ.get("DATABASE_URL", "sqlite:///./test_retail.db")
 
-import database
-import models
-import auth
-from main import app
+from app.core.database import engine
+import app.models.item as models
+from app.services.auth import get_password_hash, get_db
+from app.main import app
 
 # ─── Test database setup ─────────────────────────────────────────────────────
 
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=database.engine)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def override_get_db():
@@ -45,7 +45,7 @@ def override_get_db():
         db.close()
 
 
-app.dependency_overrides[auth.get_db] = override_get_db
+app.dependency_overrides[get_db] = override_get_db
 
 client = TestClient(app)
 
@@ -79,7 +79,7 @@ def seeded_item():
 def admin_token(seeded_item):
     """Create an admin user and return a valid Bearer token."""
     db = TestingSessionLocal()
-    hashed = auth.get_password_hash("secret123")
+    hashed = get_password_hash("secret123")
     admin = models.Admin(username="testadmin", hashed_password=hashed)
     db.add(admin)
     db.commit()
@@ -163,7 +163,7 @@ class TestAdminLogin:
     def test_login_invalid_credentials(self):
         # Create admin first
         db = TestingSessionLocal()
-        admin = models.Admin(username="otheradmin", hashed_password=auth.get_password_hash("pw"))
+        admin = models.Admin(username="otheradmin", hashed_password=get_password_hash("pw"))
         db.add(admin)
         db.commit()
         db.close()

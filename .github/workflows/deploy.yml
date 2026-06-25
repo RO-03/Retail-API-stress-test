@@ -3,7 +3,8 @@ name: Retail API — CI/CD Pipeline
 # ─── Trigger ───────────────────────────────────────────────────────────────────
 on:
   push:
-    branches: [main]
+    branches: [main, minikubeMVC]
+
 
 # ─── Single job (sequential steps) on the local WSL2 runner ────────────────────
 jobs:
