@@ -59,8 +59,8 @@ kubectl rollout status deployment/retail-api -n retail
 
 # 8. Seed the database inside the running API pod
 $pod = kubectl get pods -n retail -l app=retail-api -o jsonpath="{.items[0].metadata.name}"
-kubectl exec $pod -n retail -- python scripts/create_admin.py
-kubectl exec $pod -n retail -- python scripts/seed_items.py
+kubectl exec $pod -n retail -- env PYTHONPATH=/app python scripts/create_admin.py
+kubectl exec $pod -n retail -- env PYTHONPATH=/app python scripts/seed_items.py
 
 # 9.01. (optional) Add hosts entry — PowerShell as Administrator
 Add-Content C:\Windows\System32\drivers\etc\hosts "127.0.0.1 retail-store.local"
@@ -117,10 +117,10 @@ curl -H "Host: retail-store.local" http://localhost:8080/health
 POD_NAME=$(kubectl get pods -n retail -l app=retail-api -o jsonpath="{.items[0].metadata.name}")
 
 # 8.2.2 Execute the admin creation script
-kubectl exec $POD_NAME -n retail -- python scripts/create_admin.py
+kubectl exec $POD_NAME -n retail -- env PYTHONPATH=/app python scripts/create_admin.py
 
 # 8.2.3 Execute the inventory seeding script
-kubectl exec $POD_NAME -n retail -- python scripts/seed_items.py
+kubectl exec $POD_NAME -n retail -- env PYTHONPATH=/app python scripts/seed_items.py
 
 # 9.1. Access the service
 minikube service retail-api-service -n retail
