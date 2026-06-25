@@ -34,7 +34,7 @@ jobs:
           conda activate retail-test
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest httpx
+          pip install pytest httpx2
 
       - name: Run pytest unit tests
         run: |
