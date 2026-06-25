@@ -58,7 +58,7 @@ jobs:
             --network host \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
-            justb4/jmeter:5.6.3 \
+            qainsights/jmeter:5.6.3 \
             -n \
             -t batches.jmx \
             -l results.csv \
