@@ -1,25 +1,36 @@
+###############################################################################
+#  RETAIL API — COMMAND REFERENCE (MVC Structure)
+#  Entry-point changed: main:app  →  app.main:app
+#  Scripts moved:       create_admin.py / seed_items.py  →  scripts/
+###############################################################################
+
+# ── Activate venv (Windows) ──────────────────────────────────────────────────
 venv\Scripts\activate.bat
 
-uvicorn main:app --reload
+# ── Local dev server ─────────────────────────────────────────────────────────
+uvicorn app.main:app --reload
 
-python stress_test.py
+# ── Run tests (with SQLite override) ─────────────────────────────────────────
+$env:DATABASE_URL="sqlite:///./test_retail.db"; $env:PYTHONPATH="."; pytest tests/test_api.py -v
 
-docker stop retail_docker-api:latest
+# ── Run seed scripts locally ─────────────────────────────────────────────────
+$env:PYTHONPATH="."; python scripts/create_admin.py
+$env:PYTHONPATH="."; python scripts/seed_items.py
 
-docker rmi postgres:15-alpine
-docker rmi retail_docker-api:latest
 
+###############################################################################
+#  DOCKER COMPOSE
+###############################################################################
+
+docker compose up -d --build
+docker compose logs -f
 docker compose down
 docker system prune -a
 
 
-docker compose up -d --build
-
-docker compose logs -f
-
-
-
-Cmds for minikube
+###############################################################################
+#  MINIKUBE — Windows (PowerShell)
+###############################################################################
 
 # 1. Reset and start Minikube
 minikube stop
@@ -46,29 +57,31 @@ kubectl apply -f k8s/ingress.yaml -n retail
 # 7. Wait for the API deployment to be fully ready
 kubectl rollout status deployment/retail-api -n retail
 
-# 8. Create the admin user inside the running API pod
+# 8. Seed the database inside the running API pod
 $pod = kubectl get pods -n retail -l app=retail-api -o jsonpath="{.items[0].metadata.name}"
-kubectl exec $pod -n retail -- python create_admin.py
-kubectl exec $pod -n retail -- python seed_items.py
+kubectl exec $pod -n retail -- python scripts/create_admin.py
+kubectl exec $pod -n retail -- python scripts/seed_items.py
 
-#9.01. (optional) Powershell as administrator and execute
+# 9.01. (optional) Add hosts entry — PowerShell as Administrator
 Add-Content C:\Windows\System32\drivers\etc\hosts "127.0.0.1 retail-store.local"
 
 # 9.1. Access the service (creates a tunnel/opens in browser)
 minikube service retail-api-service -n retail
 
-# Start the tunnel for jmeter
+# Start the tunnel for JMeter
 minikube tunnel
 
 
-Cmds for minikube WSL2
+###############################################################################
+#  MINIKUBE — WSL2 (Bash)
+###############################################################################
 
 # 1. Reset and start Minikube
 minikube stop
 minikube delete
 minikube start --cpus=6 --memory=8192 --driver=docker
 
-# 2.1 delte old IP
+# 2.1 Delete old IP
 sudo sed -i '/retail-store.local/d' /etc/hosts
 
 # 2.2 Add the newly generated Minikube IP
@@ -94,49 +107,33 @@ kubectl apply -f k8s/ingress.yaml -n retail
 # 7. Wait for the API deployment to be fully ready
 kubectl rollout status deployment/retail-api -n retail
 
-# 8.1 separate terminal, port forward for accessing the API
+# 8.1 Separate terminal — port forward for accessing the API
 kubectl port-forward -n ingress-nginx service/ingress-nginx-controller 8080:80
 
-# 8.1.1 verify accessing
+# 8.1.1 Verify access
 curl -H "Host: retail-store.local" http://localhost:8080/health
 
-# 8.2 Create the admin user inside the running API pod
-# 8.2.1. Grab the name of one of your API pods
+# 8.2.1 Grab the name of one of your API pods
 POD_NAME=$(kubectl get pods -n retail -l app=retail-api -o jsonpath="{.items[0].metadata.name}")
 
-# 8.2.2. Execute the user creation script
-kubectl exec $POD_NAME -n retail -- python create_admin.py
+# 8.2.2 Execute the admin creation script
+kubectl exec $POD_NAME -n retail -- python scripts/create_admin.py
 
-# 8.2.3. Execute the inventory seeding script
-kubectl exec $POD_NAME -n retail -- python seed_items.py
+# 8.2.3 Execute the inventory seeding script
+kubectl exec $POD_NAME -n retail -- python scripts/seed_items.py
 
-
-
-
-# 9.1. Access the service (creates a tunnel/opens in browser)
+# 9.1. Access the service
 minikube service retail-api-service -n retail
-  
-# Start the tunnel for jmeter
+
+# Start the tunnel for JMeter
 minikube tunnel
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-PS C:\Users\Client> Get-CimInstance Win32_Processor | Select Name,NumberOfCores,NumberOfLogicalProcessors
-
-Name                                           NumberOfCores NumberOfLogicalProcessors
-----                                           ------------- -------------------------
-11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz             4                         8
-
+###############################################################################
+#  HOST INFO
+###############################################################################
+# PS C:\Users\Client> Get-CimInstance Win32_Processor | Select Name,NumberOfCores,NumberOfLogicalProcessors
+#
+# Name                                           NumberOfCores NumberOfLogicalProcessors
+# ----                                           ------------- -------------------------
+# 11th Gen Intel(R) Core(TM) i7-1185G7 @ 3.00GHz             4                         8
