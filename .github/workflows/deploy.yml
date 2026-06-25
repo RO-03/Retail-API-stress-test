@@ -54,9 +54,10 @@ jobs:
       # ─────────────────────────────────────────────────────────────────────────
       - name: Run JMeter load test (Docker container)
         run: |
+          MINIKUBE_IP=$(minikube ip)
           docker run --rm \
             --network host \
-            --add-host retail-store.local:127.0.0.1 \
+            --add-host retail-store.local:$MINIKUBE_IP \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
             qainsights/jmeter:latest \
