@@ -115,7 +115,7 @@ kubectl exec $POD_NAME -n retail -- python seed_items.py
 
 # 9.1. Access the service (creates a tunnel/opens in browser)
 minikube service retail-api-service -n retail
-
+ 
 # Start the tunnel for jmeter
 minikube tunnel
 
