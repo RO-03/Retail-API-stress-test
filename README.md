@@ -1,361 +1,106 @@
-# FastAPI Retail Store API – Performance Optimization & Load Testing Guide
+# High-Performance Retail API
 
-## Project Overview
+[![CI/CD Pipeline](https://github.com/RO-03/Retail-API-stress-test/actions/workflows/deploy.yml/badge.svg)](https://github.com/RO-03/Retail-API-stress-test/actions/workflows/deploy.yml)
 
-This is a full-stack Retail Store Inventory and Purchasing API designed for high concurrency workloads (10,000+ requests).
+A highly scalable, containerized REST API for retail inventory and purchasing, engineered to handle high-concurrency workloads (+10,000 concurrent requests). Built with FastAPI, PostgreSQL, and deployed on a local Kubernetes cluster (Minikube), featuring a full continuous integration and deployment (CI/CD) pipeline.
 
-To eliminate SQLite file-locking bottlenecks and enable true parallel request processing, the application has been migrated to PostgreSQL. This allows multiple Uvicorn workers to operate efficiently using shared database access and connection pooling.
+This project was specifically designed to tackle database locking bottlenecks and optimize parallel request processing through connection pooling, efficient ASGI server configuration, and Kubernetes orchestration.
 
----
+## Key Features & Architecture
 
-# Technology Stack
+- **Clean Architecture (MVC):** Structured using the Model-View-Controller design pattern for maintainability and separation of concerns.
+- **High-Concurrency Tuning:** Optimized Uvicorn worker counts and PostgreSQL connection pooling strategies (handling 350+ max connections).
+- **Kubernetes Orchestration:** Containerized with Docker and deployed via Kubernetes (`api.yaml`, `postgres.yaml`, `ingress.yaml`) with rolling zero-downtime updates and health probes.
+- **Nginx Ingress Controller:** Bypasses standard NodePort `kube-proxy` limitations, restoring high throughput under massive loads.
+- **Automated CI/CD:** GitHub Actions pipeline running on a WSL2 self-hosted runner, automating testing (pytest), performance benchmarking (JMeter), Docker image building, and Minikube deployment.
+- **Robust Authentication:** JWT-based authentication with bcrypt password hashing for admin endpoints.
+- **Performance Tested:** Load-tested using Apache JMeter inside an isolated Docker container.
 
-| Component      | Technology                            |
-| -------------- | ------------------------------------- |
-| Framework      | FastAPI (Python 3.11)                 |
-| ASGI Server    | Uvicorn                               |
-| ORM            | SQLAlchemy (Synchronous)              |
-| Database       | PostgreSQL 15 (Official Alpine Image) |
-| Infrastructure | Docker Compose                        |
-| Load Testing   | Apache JMeter                         |
+## Technology Stack
 
----
+- **Backend:** FastAPI (Python 3.11), Uvicorn, Jinja2
+- **Database:** PostgreSQL 15, SQLAlchemy ORM
+- **Authentication:** passlib, python-jose, bcrypt
+- **Containerization:** Docker
+- **Orchestration:** Kubernetes (Minikube), Nginx Ingress
+- **CI/CD:** GitHub Actions
+- **Testing:** Pytest, HTTPX, Apache JMeter
 
-# Infrastructure Files
-
-## `docker-compose.yml`
-
-Defines two services:
-
-### `db`
-
-* Uses `postgres:15-alpine`
-* Stores data in persistent volume `postgres_data`
-* Initializes PostgreSQL credentials
-* Configures PostgreSQL connection limits
-
-### `api`
-
-* Builds FastAPI backend image
-* Injects `DATABASE_URL`
-* Exposes port `8000`
-* Depends on the database service
-
----
-
-## `Dockerfile`
-
-Runs FastAPI using multiple Uvicorn workers.
-
-### Worker Calculation Formula
+## Project Structure
 
 ```text
-workers = CPU cores × 0.75
+├── app/
+│   ├── controllers/   # Route handlers (Admin, Customer, Health)
+│   ├── core/          # App config and Database setup
+│   ├── models/        # SQLAlchemy ORM Models
+│   ├── schemas/       # Pydantic validation schemas
+│   ├── services/      # Business logic (Auth, JWT)
+│   ├── views/         # Jinja2 HTML templates
+│   └── main.py        # FastAPI application factory
+├── k8s/               # Kubernetes deployment manifests
+├── scripts/           # DB initialization scripts
+├── tests/             # Pytest unit & integration tests
+├── .github/workflows/ # CI/CD pipeline definitions
+├── Dockerfile         # Optimized multi-worker image
+└── batches.jmx        # JMeter stress test configuration
 ```
 
-### Example
+## Getting Started
 
-For an 8-core machine:
+### Prerequisites
 
-```text
-workers = 8 × 0.75 = 6
-```
+- Docker & Docker Compose (or Docker Desktop)
+- Minikube
+- `kubectl`
+- Python 3.11+ (for local development)
 
-### Uvicorn Configuration
+### 1. Local Kubernetes Deployment (Minikube)
 
-```dockerfile
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "<calculated_workers>"]
-```
-
----
-
-## `docker-compose.yml`
-
-### PostgreSQL Connection Calculation
-
-```text
-max_connections = workers × 5 + 50
-```
-
-### Example
-
-For 60 workers:
-
-```text
-max_connections = 60 × 5 + 50
-                 = 350
-```
-
-### PostgreSQL Configuration
-
-```yaml
-services:
-  db:
-    image: postgres:15-alpine
-    command: postgres -c max_connections=350
-    environment:
-      ...............
-```
-
----
-
-## `database.py`
-
-SQLAlchemy engine configuration:
-
-```python
-engine = create_engine(
-    DATABASE_URL,
-    pool_size=20,        # 20 base connections per worker
-    max_overflow=30,     # +30 overflow = 50 max connections per worker
-    pool_timeout=30,
-    pool_recycle=1800
-)
-```
-
-### Connection Pool Settings
-
-| Parameter    | Value    | Description                      |
-| ------------ | -------- | -------------------------------- |
-| pool_size    | 20       | Base connections per worker      |
-| max_overflow | 30       | Additional temporary connections |
-| pool_timeout | 30 sec   | Wait time before timeout         |
-| pool_recycle | 1800 sec | Recycle stale connections        |
-
-Maximum possible connections per worker:
-
-```text
-20 + 30 = 50 connections
-```
-
----
-
-## `requirements.txt`
-
-Key dependencies:
-
-```text
-fastapi
-uvicorn
-sqlalchemy
-pydantic
-requests
-psycopg2-binary
-```
-
----
-
-# Apache JMeter Setup
-
-Install Apache JMeter and use the provided:
-
-```text
-batches.jmx
-```
-
-file for load testing and performance tuning.
-
-### Steps
-
-1. Install JMeter
-2. Launch JMeter
-3. Open:
-
-```text
-batches.jmx
-```
-
-4. Configure test parameters if required
-5. Execute the stress test
-6. Collect performance metrics
-
----
-
-# Optimization Workflow
-
-## Step 1 – Calculate Worker Count
-
-```text
-workers = CPU cores × 0.75
-```
-
----
-
-## Step 2 – Configure PostgreSQL Connections
-
-```text
-max_connections = workers × 5 + 50
-```
-
----
-
-## Step 3 – Deploy Application
-
+First, start Minikube and enable the Nginx Ingress addon:
 ```bash
-docker compose up -d --build
+minikube start
+minikube addons enable ingress
 ```
 
----
-
-## Step 4 – Run JMeter Stress Tests
-
-Open:
-
-```text
-batches.jmx
-```
-
-Run load tests and simulate production traffic.
-
----
-
-## Step 5 – Record Metrics
-
-Capture the following:
-
-### Application Metrics
-
-* Throughput (Requests/sec)
-* Average Response Time
-* 95th Percentile Response Time
-* Error Rate
-
-### System Metrics
-
-* CPU Usage
-* Memory Usage
-* Network Usage
-
-### Database Metrics
-
-* Active Connections
-* Connection Pool Utilization
-* Query Performance
-
----
-
-## Step 6 – Tune Worker Count
-
-Repeat testing with different worker values.
-
-### Increase Workers If
-
-* CPU utilization is low
-* Database has available connections
-* Throughput increases
-
-### Decrease Workers If
-
-* Context switching becomes excessive
-* CPU remains saturated
-* Response times worsen
-* Error rates increase
-
----
-
-## Step 7 – Select Optimal Configuration
-
-Choose the configuration that provides:
-
-### Highest Throughput
-
-Maximum requests processed per second.
-
-### Lowest Response Time
-
-Fastest average and percentile response times.
-
-### Stable CPU Utilization
-
-Avoids CPU saturation and excessive context switching.
-
-### Minimal Errors
-
-Maintains reliability under heavy load.
-
----
-
-# Standard Commands
-
-## Build and Start
-
+Point your Docker CLI to Minikube's internal daemon:
 ```bash
-docker compose up -d --build
+eval $(minikube docker-env)  # Linux/macOS
+& minikube -p minikube docker-env --shell powershell | Invoke-Expression # Windows
 ```
 
----
-
-## View Logs
-
+Build the application image:
 ```bash
-docker compose logs -f
+docker build -t retail-api:latest .
 ```
 
----
-
-## Stop Containers
-
+Deploy the database and API components:
 ```bash
-docker compose down
+kubectl create namespace retail
+kubectl apply -f k8s/postgres.yaml -n retail
+kubectl apply -f k8s/api.yaml -n retail
+kubectl apply -f k8s/ingress.yaml -n retail
 ```
 
----
+*(Note: Depending on your OS, you may need to run `minikube tunnel` and map `retail-store.local` to `127.0.0.1` in your `hosts` file to access the Ingress).*
 
-## Restart Services
+### 2. CI/CD Pipeline
 
-```bash
-docker compose restart
-```
+The `.github/workflows/deploy.yml` runs a complete pipeline on every push to `main` and `minikubeMVC` branches:
+1. Provisions a Conda environment and runs **Pytest** with an isolated SQLite instance.
+2. Runs **JMeter Load Tests** via a throwaway Docker container against Minikube.
+3. Evaluates performance (Quality Gate via `check_performance.py`).
+4. Builds and injects the Docker image directly into the Minikube registry.
+5. Deploys via `kubectl rollout restart` with a 3-minute readiness probe timeout.
 
----
+### 3. Load Testing
 
-## Check Running Containers
+Load testing can be performed using the included `batches.jmx` Apache JMeter profile, configured to hit the Nginx Ingress at `retail-store.local`. It measures:
+- Request Throughput (Req/sec)
+- 95th Percentile Response Time
+- Error Rates under 10k concurrent constraints
 
-```bash
-docker compose ps
-```
+## Optimization Strategy
 
----
-
-# Summary
-
-1. Calculate workers:
-
-```text
-workers = CPU cores × 0.75
-```
-
-2. Configure PostgreSQL:
-
-```text
-max_connections = workers × 5 + 50
-```
-
-3. Deploy:
-
-```bash
-docker compose up -d --build
-```
-
-4. Run:
-
-```text
-batches.jmx
-```
-
-5. Measure:
-
-   * Throughput
-   * Response Time
-   * Error Rate
-   * CPU Usage
-   * Database Connections
-
-6. Adjust worker count and repeat testing.
-
-7. Select the configuration with the best balance of:
-
-   * Throughput
-   * Latency
-   * Stability
-   * Resource Utilization
+The system is mathematically tuned for its execution environment:
+- **Workers:** Calculated as `CPU cores * 0.75`. The Kubernetes pods are configured for 2 Uvicorn workers each across 3 replicas (6 total workers).
+- **Database Connections:** Scaled dynamically via SQLAlchemy pool sizing `(pool_size=20, max_overflow=30)` targeting a PostgreSQL database tuned to accept `max_connections=350`.
