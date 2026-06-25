@@ -59,12 +59,12 @@ This API isn't just containerized; it is mathematically tuned for its execution 
 
 ### 1. ASGI Worker Optimization
 The optimal number of workers prevents excessive CPU context switching while maximizing throughput.
-* **Formula:** `Workers = CPU Cores × 0.75`
+* **Step 1 – Calculate Worker Count:** `workers = CPU cores × 0.75`
 * **Implementation:** In this K8s deployment, we run **3 Replicas**, each configured with **2 Uvicorn workers** in the `Dockerfile`, yielding an optimal **6 system workers**.
 
 ### 2. Database Connection Pooling
 To prevent PostgreSQL connection exhaustion under a 10k user load, the connection pool was carefully sized.
-* **Formula:** `Max Connections = (Total Workers × 5) + 50`
+* **Step 2 – Configure PostgreSQL Connections:** `max_connections = workers × 5 + 50`
 * **Implementation:** `max_connections` is strictly set to **350** in the Postgres deployment. The SQLAlchemy engine is configured with `pool_size=20` and `max_overflow=30` per worker.
 
 ### 3. Nginx Ingress Migration
