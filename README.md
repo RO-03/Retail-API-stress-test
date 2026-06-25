@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>🚀 High-Performance Retail API</h1>
+  <h1> High-Performance Retail API </h1>
   <p><i>A highly scalable, containerized REST API engineered for extreme concurrency</i></p>
   
   [![CI/CD Pipeline](https://github.com/RO-03/Retail-API-stress-test/actions/workflows/deploy.yml/badge.svg)](https://github.com/RO-03/Retail-API-stress-test/actions/workflows/deploy.yml)
