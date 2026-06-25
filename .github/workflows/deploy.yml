@@ -44,8 +44,8 @@ jobs:
 
           pytest tests/test_api.py -v --tb=short
         env:
+          PYTHONPATH: .
           DATABASE_URL: "sqlite:///./test_retail.db" # lightweight in-memory DB for unit tests
-
       # ─────────────────────────────────────────────────────────────────────────
       # STEP 3 — Performance Tests (JMeter via Docker)
       # JMeter runs inside a throwaway container — no Java/JMeter install needed.
