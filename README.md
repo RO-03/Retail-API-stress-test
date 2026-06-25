@@ -168,3 +168,42 @@ A pre-configured JMeter test plan (`batches.jmx`) is included in the root direct
 ├── tests/             # Comprehensive Pytest test suite
 └── batches.jmx        # JMeter load testing configuration
 ```
+
+---
+
+## ⚡ Execution Command Reference
+
+Below is a reference list of execution commands utilized throughout this project for local dev, Docker, and Minikube deployment.
+
+```bash
+# ── Local dev server ─────────────────────────────────────────────────────────
+uvicorn app.main:app --reload
+
+# ── Run tests (with SQLite override) ─────────────────────────────────────────
+$env:DATABASE_URL="sqlite:///./test_retail.db"; $env:PYTHONPATH="."; pytest tests/test_api.py -v
+
+# ── Run seed scripts locally ─────────────────────────────────────────────────
+$env:PYTHONPATH="."; python scripts/create_admin.py
+$env:PYTHONPATH="."; python scripts/seed_items.py
+
+# ── Docker Compose ───────────────────────────────────────────────────────────
+docker compose up -d --build
+docker compose logs -f
+docker compose down
+
+# ── Minikube (Windows PowerShell) ────────────────────────────────────────────
+minikube start --cpus=6 --memory=8192 --driver=docker
+& minikube -p minikube docker-env --shell powershell | Invoke-Expression
+docker build -t retail-api:latest .
+minikube addons enable ingress
+kubectl create namespace retail
+kubectl apply -f k8s/postgres.yaml -n retail
+kubectl apply -f k8s/api.yaml -n retail
+kubectl apply -f k8s/ingress.yaml -n retail
+kubectl rollout status deployment/retail-api -n retail
+
+# ── Seed K8s DB ──────────────────────────────────────────────────────────────
+$pod = kubectl get pods -n retail -l app=retail-api -o jsonpath="{.items[0].metadata.name}"
+kubectl exec $pod -n retail -- env PYTHONPATH=/app python scripts/create_admin.py
+kubectl exec $pod -n retail -- env PYTHONPATH=/app python scripts/seed_items.py
+```
